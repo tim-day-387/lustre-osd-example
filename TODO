@@ -1,0 +1,72 @@
+Learnings (Update OSD docs)
+- Be careful about saying what exists
+  and what doesn't (LOHA_EXISTS)
+- osd_object are primarily created for
+  accounting purposes (both for caching and
+  within the context of transactions)
+- osd_oi handles translating FIDs into handles
+  to objects that actually contain data (that
+  may be an inode or a ref to some osd_data
+  object)
+- lu_object_find_at() seems to handle finding
+  pre-existing objects associated with a FID;
+  hence, we shouldn't have to worry about two
+  osd_object conflicting (i.e. having the same
+  FID)
+- There are multiple dt_index_operations defined
+  because they represent three different indices
+  with unique data
+- osd_index_try() is passed all of the information
+  needed to define an index via the features
+  parameter
+- We need to be able to create arbitrary indices,
+  that could use unique (key, value) pairs; this
+  could be lbufs in a linked list; the directory
+  provides all of the information we need to
+  implement this functionality
+
+Progress
+- MGS works! It handles llogs correctly and allows
+  other targets to start.
+- MDT (mostly) works! We can create files, dirs, and
+  symlinks. A number of sanity.sh tests pass.
+
+TODO (Debugging)
+- Need to map FIDs to something more
+  meaningful!
+- Clean up logging and debugging (levels,
+  transactions, better state logs)
+- Add better object lifecycle logging
+- Add invariant checks alongside tracing
+- The dir iterator is certainly broken! Probably
+  something with the hash? Add more debug!
+
+TOOD (Bugs)
+- osd_statfs() sets up a bunch of state
+  about the OSD so Lustre can use it; we
+  should attempt to return correct info
+- Index operations need to be filled out
+  more (freeing, deleting, and more!)
+- Be careful about passing back correct info
+  to callers
+- osd_oi.c has a bunch of FID cruft that can
+  be moved
+- Failing on IT_OPEN | IT_CREAT call with
+  ENOSPC?
+- Do proper attr management; we should capture
+  all data passed about osd_object and push it
+  to osd_data
+- index and xattr handling have a lot of duplication;
+  think of ways to reduce this?
+- Check lustre/include/dt_object.h for proper
+  return codes on functions?
+- Express lu_buf via vmmap and manual page
+  management?
+- The parent/child relationship isn't likely
+  being expressed correctly?
+- On cleanup, we can crash on osp_sync_thread(), with
+  ASSERTION(count < 10)
+- During highly parallel workloads, we crash in
+  osd_buf_check_and_grow() for accessing invalid address
+- Add invariant checking! Our verbose logging to too much
+  for real testing!

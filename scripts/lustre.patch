@@ -1,0 +1,855 @@
+From f81823a758f4c6231dbfb75710fc815850547fd7 Mon Sep 17 00:00:00 2001
+From: Timothy Day <tday141@gmail.com>
+Date: Sun, 14 Apr 2024 19:00:32 -0400
+Subject: [PATCH] osd-mem: in-memory OSD device
+
+Wiring for out-of-tree OSD.
+
+Signed-off-by: Timothy Day <tday141@gmail.com>
+---
+ config/lustre-build.m4                        |   2 +-
+ lustre/include/dt_object.h                    |  86 ++++++--
+ lustre/include/lu_object.h                    |   9 +
+ lustre/include/obd.h                          |   1 +
+ .../include/uapi/linux/lustre/lustre_disk.h   |   1 +
+ lustre/mdt/mdt_handler.c                      |   4 +-
+ lustre/mgs/lproc_mgs.c                        |   7 +-
+ lustre/obdclass/lu_object.c                   |  31 +++
+ lustre/tests/test-framework.sh                |  73 ++++++-
+ lustre/utils/Makefile.am                      |  16 ++
+ lustre/utils/libmount_utils_mem.c             | 201 ++++++++++++++++++
+ lustre/utils/mkfs_lustre.c                    |   4 -
+ lustre/utils/mount_lustre.c                   |  15 ++
+ lustre/utils/mount_utils.h                    |   3 +
+ 14 files changed, 416 insertions(+), 37 deletions(-)
+ create mode 100644 lustre/utils/libmount_utils_mem.c
+
+diff --git a/config/lustre-build.m4 b/config/lustre-build.m4
+index 9e56a96973..16668ece73 100644
+--- a/config/lustre-build.m4
++++ b/config/lustre-build.m4
+@@ -445,7 +445,7 @@ LB_CONFIG_ZFS
+ AS_IF([test x$enable_ldiskfs = xno -a x$enable_zfs = xno], [
+ 	AS_CASE([$enable_server],
+ 		[maybe], [enable_server=no],
+-		[yes], [AC_MSG_ERROR([cannot enable servers, no backends were configured])])
++		[yes], [AC_MSG_WARN([no backends were configured])])
+ 	], [
+ 		AS_IF([test x$enable_server = xmaybe], [enable_server=yes])
+ 	])
+diff --git a/lustre/include/dt_object.h b/lustre/include/dt_object.h
+index 20f61cab8f..8c0e25d013 100644
+--- a/lustre/include/dt_object.h
++++ b/lustre/include/dt_object.h
+@@ -2206,7 +2206,10 @@ static inline int dt_object_sync(const struct lu_env *env, struct dt_object *o,
+ {
+ 	LASSERT(o);
+ 	LASSERT(o->do_ops);
+-	LASSERT(o->do_ops->do_object_sync);
++
++	if (unlikely(!o->do_ops->do_object_sync))
++		return 0;
++
+ 	return o->do_ops->do_object_sync(env, o, start, end);
+ }
+ 
+@@ -2309,8 +2312,12 @@ static inline int dt_declare_record_write(const struct lu_env *env,
+ 	LASSERT(th != NULL);
+ 	LASSERTF(dt->do_body_ops, DFID" doesn't exit\n",
+ 		 PFID(lu_object_fid(&dt->do_lu)));
+-	LASSERT(dt->do_body_ops->dbo_declare_write);
++
++	if (unlikely(!dt->do_body_ops->dbo_declare_write))
++		return 0;
++
+ 	rc = dt->do_body_ops->dbo_declare_write(env, dt, buf, pos, th);
++
+ 	return rc;
+ }
+ 
+@@ -2323,11 +2330,13 @@ static inline int dt_declare_create(const struct lu_env *env,
+ {
+ 	LASSERT(dt);
+ 	LASSERT(dt->do_ops);
+-	LASSERT(dt->do_ops->do_declare_create);
+ 
+ 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_CREATE))
+ 		return cfs_fail_err;
+ 
++	if (unlikely(!dt->do_ops->do_declare_create))
++		return 0;
++
+ 	return dt->do_ops->do_declare_create(env, dt, attr, hint, dof, th);
+ }
+ 
+@@ -2354,11 +2363,13 @@ static inline int dt_declare_destroy(const struct lu_env *env,
+ {
+ 	LASSERT(dt);
+ 	LASSERT(dt->do_ops);
+-	LASSERT(dt->do_ops->do_declare_destroy);
+ 
+ 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_DESTROY))
+ 		return cfs_fail_err;
+ 
++	if (unlikely(!dt->do_ops->do_declare_destroy))
++		return 0;
++
+ 	return dt->do_ops->do_declare_destroy(env, dt, th);
+ }
+ 
+@@ -2427,7 +2438,9 @@ static inline bool dt_object_stale(struct dt_object *dt)
+ {
+ 	LASSERT(dt);
+ 	LASSERT(dt->do_ops);
+-	LASSERT(dt->do_ops->do_check_stale);
++
++	if (unlikely(!dt->do_ops->do_check_stale))
++		return false;
+ 
+ 	return dt->do_ops->do_check_stale(dt);
+ }
+@@ -2465,11 +2478,13 @@ static inline int dt_declare_attr_set(const struct lu_env *env,
+ {
+ 	LASSERT(dt);
+ 	LASSERT(dt->do_ops);
+-	LASSERT(dt->do_ops->do_declare_attr_set);
+ 
+ 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_ATTR_SET))
+ 		return cfs_fail_err;
+ 
++	if (unlikely(!dt->do_ops->do_declare_attr_set))
++		return 0;
++
+ 	return dt->do_ops->do_declare_attr_set(env, dt, la, th);
+ }
+ 
+@@ -2491,11 +2506,13 @@ static inline int dt_declare_ref_add(const struct lu_env *env,
+ {
+ 	LASSERT(dt);
+ 	LASSERT(dt->do_ops);
+-	LASSERT(dt->do_ops->do_declare_ref_add);
+ 
+ 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_REF_ADD))
+ 		return cfs_fail_err;
+ 
++	if (unlikely(!dt->do_ops->do_declare_ref_add))
++		return 0;
++
+ 	return dt->do_ops->do_declare_ref_add(env, dt, th);
+ }
+ 
+@@ -2517,11 +2534,13 @@ static inline int dt_declare_ref_del(const struct lu_env *env,
+ {
+ 	LASSERT(dt);
+ 	LASSERT(dt->do_ops);
+-	LASSERT(dt->do_ops->do_declare_ref_del);
+ 
+ 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_REF_DEL))
+ 		return cfs_fail_err;
+ 
++	if (unlikely(!dt->do_ops->do_declare_ref_del))
++		return 0;
++
+ 	return dt->do_ops->do_declare_ref_del(env, dt, th);
+ }
+ 
+@@ -2575,6 +2594,10 @@ static inline int dt_declare_write_commit(const struct lu_env *env,
+ {
+ 	LASSERTF(d != NULL, "dt is NULL when we want to declare write\n");
+ 	LASSERT(th != NULL);
++
++	if (unlikely(!d->do_body_ops->dbo_declare_write_commit))
++		return 0;
++
+ 	return d->do_body_ops->dbo_declare_write_commit(env, d, lnb, n, th);
+ }
+ 
+@@ -2605,7 +2628,10 @@ static inline int dt_declare_write(const struct lu_env *env,
+ {
+ 	LASSERT(dt);
+ 	LASSERT(dt->do_body_ops);
+-	LASSERT(dt->do_body_ops->dbo_declare_write);
++
++	if (unlikely(!dt->do_body_ops->dbo_declare_write))
++		return 0;
++
+ 	return dt->do_body_ops->dbo_declare_write(env, dt, buf, pos, th);
+ }
+ 
+@@ -2625,7 +2651,10 @@ static inline int dt_declare_punch(const struct lu_env *env,
+ {
+ 	LASSERT(dt);
+ 	LASSERT(dt->do_body_ops);
+-	LASSERT(dt->do_body_ops->dbo_declare_punch);
++
++	if (unlikely(!dt->do_body_ops->dbo_declare_punch))
++		return 0;
++
+ 	return dt->do_body_ops->dbo_declare_punch(env, dt, start, end, th);
+ }
+ 
+@@ -2652,10 +2681,13 @@ static inline int dt_declare_fallocate(const struct lu_env *env,
+ 				       __u64 end, int mode, struct thandle *th)
+ {
+ 	LASSERT(dt);
++
+ 	if (!dt->do_body_ops)
+ 		return -EOPNOTSUPP;
+-	LASSERT(dt->do_body_ops);
+-	LASSERT(dt->do_body_ops->dbo_declare_fallocate);
++
++	if (unlikely(!dt->do_body_ops->dbo_declare_fallocate))
++		return 0;
++
+ 	return dt->do_body_ops->dbo_declare_fallocate(env, dt, start, end,
+ 						      mode, th);
+ }
+@@ -2744,7 +2776,10 @@ static inline int dt_sync(const struct lu_env *env, struct dt_device *dev)
+ {
+ 	LASSERT(dev);
+ 	LASSERT(dev->dd_ops);
+-	LASSERT(dev->dd_ops->dt_sync);
++
++	if (unlikely(!dev->dd_ops->dt_sync))
++		return 0;
++
+ 	return dev->dd_ops->dt_sync(env, dev);
+ }
+ 
+@@ -2764,11 +2799,13 @@ static inline int dt_declare_insert(const struct lu_env *env,
+ {
+ 	LASSERT(dt);
+ 	LASSERT(dt->do_index_ops);
+-	LASSERT(dt->do_index_ops->dio_declare_insert);
+ 
+ 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_INSERT))
+ 		return cfs_fail_err;
+ 
++	if (unlikely(!dt->do_index_ops->dio_declare_insert))
++		return 0;
++
+ 	return dt->do_index_ops->dio_declare_insert(env, dt, rec, key, th);
+ }
+ 
+@@ -2795,11 +2832,13 @@ static inline int dt_declare_xattr_del(const struct lu_env *env,
+ {
+ 	LASSERT(dt);
+ 	LASSERT(dt->do_ops);
+-	LASSERT(dt->do_ops->do_declare_xattr_del);
+ 
+ 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_XATTR_DEL))
+ 		return cfs_fail_err;
+ 
++	if (unlikely(!dt->do_ops->do_declare_xattr_del))
++		return 0;
++
+ 	return dt->do_ops->do_declare_xattr_del(env, dt, name, th);
+ }
+ 
+@@ -2825,11 +2864,13 @@ static inline int dt_declare_xattr_set(const struct lu_env *env,
+ {
+ 	LASSERT(dt);
+ 	LASSERT(dt->do_ops);
+-	LASSERT(dt->do_ops->do_declare_xattr_set);
+ 
+ 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_XATTR_SET))
+ 		return cfs_fail_err;
+ 
++	if (unlikely(!dt->do_ops->do_declare_xattr_set))
++		return 0;
++
+ 	return dt->do_ops->do_declare_xattr_set(env, dt, buf, name, fl, th);
+ }
+ 
+@@ -2893,7 +2934,9 @@ static inline int dt_invalidate(const struct lu_env *env, struct dt_object *dt)
+ {
+ 	LASSERT(dt);
+ 	LASSERT(dt->do_ops);
+-	LASSERT(dt->do_ops->do_invalidate);
++
++	if (unlikely(!dt->do_ops->do_invalidate))
++		return 0;
+ 
+ 	return dt->do_ops->do_invalidate(env, dt);
+ }
+@@ -2905,11 +2948,13 @@ static inline int dt_declare_delete(const struct lu_env *env,
+ {
+ 	LASSERT(dt);
+ 	LASSERT(dt->do_index_ops);
+-	LASSERT(dt->do_index_ops->dio_declare_delete);
+ 
+ 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_DELETE))
+ 		return cfs_fail_err;
+ 
++	if (unlikely(!dt->do_index_ops->dio_declare_delete))
++		return 0;
++
+ 	return dt->do_index_ops->dio_declare_delete(env, dt, key, th);
+ }
+ 
+@@ -2933,7 +2978,10 @@ static inline int dt_commit_async(const struct lu_env *env,
+ {
+ 	LASSERT(dev);
+ 	LASSERT(dev->dd_ops);
+-	LASSERT(dev->dd_ops->dt_commit_async);
++
++	if (unlikely(!dev->dd_ops->dt_commit_async))
++		return 0;
++
+ 	return dev->dd_ops->dt_commit_async(env, dev);
+ }
+ 
+diff --git a/lustre/include/lu_object.h b/lustre/include/lu_object.h
+index 421ee93d31..e413612119 100644
+--- a/lustre/include/lu_object.h
++++ b/lustre/include/lu_object.h
+@@ -1559,6 +1559,15 @@ void lu_buf_realloc(struct lu_buf *buf, size_t size);
+ 
+ int lu_buf_check_and_grow(struct lu_buf *buf, size_t len);
+ struct lu_buf *lu_buf_check_and_alloc(struct lu_buf *buf, size_t len);
++int lu_buf_cpy_ptr(struct lu_buf *dst, void *src, size_t len,
++		   loff_t off);
++
++static inline int lu_buf_cpy(struct lu_buf *dst,
++			     const struct lu_buf *src,
++			     loff_t off)
++{
++	return lu_buf_cpy_ptr(dst, src->lb_buf, src->lb_len, off);
++}
+ 
+ extern __u32 lu_context_tags_default;
+ extern __u32 lu_session_tags_default;
+diff --git a/lustre/include/obd.h b/lustre/include/obd.h
+index 62baa2a657..6261830d22 100644
+--- a/lustre/include/obd.h
++++ b/lustre/include/obd.h
+@@ -482,6 +482,7 @@ struct tgt_thread_big_cache {
+ #define LUSTRE_MDD_NAME         "mdd"
+ #define LUSTRE_OSD_LDISKFS_NAME	"osd-ldiskfs"
+ #define LUSTRE_OSD_ZFS_NAME     "osd-zfs"
++#define LUSTRE_OSD_MEM_NAME     "osd-mem"
+ #define LUSTRE_VVP_NAME         "vvp"
+ #define LUSTRE_LMV_NAME         "lmv"
+ #define LUSTRE_SLP_NAME         "slp"
+diff --git a/lustre/include/uapi/linux/lustre/lustre_disk.h b/lustre/include/uapi/linux/lustre/lustre_disk.h
+index eae43efe97..d5575ec66f 100644
+--- a/lustre/include/uapi/linux/lustre/lustre_disk.h
++++ b/lustre/include/uapi/linux/lustre/lustre_disk.h
+@@ -141,6 +141,7 @@ enum ldd_mount_type {
+ 	LDD_MT_REISERFS = 3,
+ 	LDD_MT_LDISKFS2 = 4,
+ 	LDD_MT_ZFS = 5,
++	LDD_MT_MEM = 6,
+ 	LDD_MT_LAST
+ };
+ 
+diff --git a/lustre/mdt/mdt_handler.c b/lustre/mdt/mdt_handler.c
+index 7a8e853e40..fb39ced213 100644
+--- a/lustre/mdt/mdt_handler.c
++++ b/lustre/mdt/mdt_handler.c
+@@ -3192,7 +3192,7 @@ int mdt_device_sync(const struct lu_env *env, struct mdt_device *mdt)
+ 
+ 	ENTRY;
+ 
+-	rc = dt->dd_ops->dt_sync(env, dt);
++	rc = dt_sync(env, dt);
+ 	RETURN(rc);
+ }
+ 
+@@ -3605,7 +3605,7 @@ static void mdt_device_commit_async(const struct lu_env *env,
+ 
+ 	ENTRY;
+ 
+-	rc = dt->dd_ops->dt_commit_async(env, dt);
++	rc = dt_commit_async(env, dt);
+ 	if (unlikely(rc != 0))
+ 		CWARN("%s: async commit start failed: rc = %d\n",
+ 		      mdt_obd_name(mdt), rc);
+diff --git a/lustre/mgs/lproc_mgs.c b/lustre/mgs/lproc_mgs.c
+index 082fb03220..573700cb8e 100644
+--- a/lustre/mgs/lproc_mgs.c
++++ b/lustre/mgs/lproc_mgs.c
+@@ -325,7 +325,12 @@ int lproc_mgs_setup(struct mgs_device *mgs, const char *osd_name)
+ 		CWARN("%s: failed to create symlink osd -> %s, rc = %d\n",
+ 		      kobject_name(&obd->obd_kset.kobj),
+ 		      kobject_name(&mgs->mgs_bottom->dd_kobj), rc);
+-		rc = 0;
++
++		/* TODO - We don't create an lprocfs for OSD
++		 * mem, so give up here. There should be better
++		 * handling instead to avoid NULL deref.
++		 */
++		return 0;
+ 	}
+ 
+ 	bottom_type = get_ktype(&mgs->mgs_bottom->dd_kobj);
+diff --git a/lustre/obdclass/lu_object.c b/lustre/obdclass/lu_object.c
+index cd98acbca0..2ad4037177 100644
+--- a/lustre/obdclass/lu_object.c
++++ b/lustre/obdclass/lu_object.c
+@@ -2469,3 +2469,34 @@ int lu_buf_check_and_grow(struct lu_buf *buf, size_t len)
+ 	return 0;
+ }
+ EXPORT_SYMBOL(lu_buf_check_and_grow);
++
++/**
++ * lu_buf_cpy_ptr() - Copy from pointer to lu_buf.
++ * @dst: Unallocated or pre-existing lu_buf.
++ * @src: Pointer to data to be copied.
++ * @len: Length of data to be copied.
++ * @off: Offset to copy into lu_buf at.
++ *
++ * Return: 0 if successful, -ENOMEM
++ */
++int lu_buf_cpy_ptr(struct lu_buf *dst, void *src, size_t len,
++		   loff_t off)
++{
++	size_t size = len + off;
++	int rc = 0;
++
++	if (!dst->lb_buf)
++		lu_buf_alloc(dst, size);
++
++	if (!dst->lb_buf)
++		return -ENOMEM;
++
++	rc = lu_buf_check_and_grow(dst, size);
++	if (rc)
++		return rc;
++
++	memcpy(dst->lb_buf + off, src, len);
++
++	return 0;
++}
++EXPORT_SYMBOL(lu_buf_cpy_ptr);
+diff --git a/lustre/tests/test-framework.sh b/lustre/tests/test-framework.sh
+index 120f5a1934..f931279d25 100755
+--- a/lustre/tests/test-framework.sh
++++ b/lustre/tests/test-framework.sh
+@@ -1056,6 +1056,15 @@ load_modules_local() {
+ 			load_module ../ldiskfs/ldiskfs
+ 			load_module osd-ldiskfs/osd_ldiskfs
+ 		fi
++
++		if [[ -n "$MEM_OSS" ]] || [[ -n "$MEM_MDS" ]]; then
++			load_module osd-mem/osd_mem
++		fi
++
++		if [[ -n "$VB_OSD_DEBUG" ]] && [[ -f /sys/module/osd_mem/parameters/verbose_debug ]]; then
++			echo $VB_OSD_DEBUG | tee /sys/module/osd_mem/parameters/verbose_debug
++		fi
++
+ 		load_module mgs/mgs
+ 		load_module mdd/mdd
+ 		load_module mdt/mdt
+@@ -2403,6 +2412,17 @@ mount_facet() {
+ 	local mntpt=$(facet_mntpt $facet)
+ 	local opts="${!opt} $@"
+ 	local fstype=$(facet_fstype $facet)
++	local index=$(facet_index $facet)
++	local node_type=$(facet_type $facet)
++
++	if [[ -n "$MEM_OSS" ]] && [[ $node_type == "OST" ]]; then
++		local fstype="mem"
++	fi
++
++	if [[ -n "$MEM_MDS" ]] && [[ $node_type == "MDS" ]]; then
++		local fstype="mem"
++	fi
++
+ 	local devicelabel
+ 	local dm_dev=${!dev}
+ 
+@@ -2427,21 +2447,48 @@ mount_facet() {
+ 
+ 		devicelabel=$(do_facet ${facet} "$ZFS get -H -o value \
+ 						lustre:svname $dm_dev");;
++	mem)
++		:;;
+ 	*)
+ 		error "unknown fstype!";;
+ 	esac
+ 
+-	echo "Starting ${facet}: $opts $dm_dev $mntpt"
+ 	# for testing LU-482 error handling in mount_facets() and test_0a()
+ 	if [ -f $TMP/test-lu482-trigger ]; then
+ 		RC=2
+ 	else
+ 		local seq_width=$(($OSTSEQWIDTH / $OSTCOUNT))
+ 		(( $seq_width >= 16384 )) || seq_width=16384
+-		do_facet ${facet} \
+-			"mkdir -p $mntpt; $MOUNT_CMD $opts $dm_dev $mntpt"
++
++		case $fstype in
++		mem)
++			echo "Starting ${facet}: $LUSTRE/utils/mount.lustre -v $mntpt"
++
++			# Grab ENV variables for OSD mem
++			if [[ -n "$MEM_OSS" ]] && [[ $node_type == "OST" ]]; then
++				export OSD_MEM_TGT_TYPE="OST"
++				export OSD_MEM_INDEX=$index
++				export OSD_MEM_MGS_NID="$(hostname -i)@tcp"
++			fi
++
++			# Grab ENV variables for OSD mem
++			if [[ -n "$MEM_MDS" ]] && [[ $node_type == "MDS" ]]; then
++				export OSD_MEM_PRIMARY_MDT="1"
++				export OSD_MEM_TGT_TYPE="MDT"
++				export OSD_MEM_INDEX=$index
++				export OSD_MEM_MGS_NID="$(hostname -i)@tcp"
++			fi
++
++			do_facet ${facet} \
++				 "mkdir -p $mntpt; $LUSTRE/utils/mount.lustre -v $mntpt";;
++		*)
++			echo "Starting ${facet}: $MOUNT_CMD $opts $dm_dev $mntpt"
++			do_facet ${facet} \
++				 "mkdir -p $mntpt; $MOUNT_CMD $opts $dm_dev $mntpt"
++		esac
++
+ 		RC=${PIPESTATUS[0]}
+-		if [[ ${facet} =~ ost ]]; then
++		if [[ ${facet} =~ ost ]] && [[ -z "$MEM_OSS" ]]; then
+ 			do_facet ${facet} "$LCTL set_param \
+ 				seq.cli-$(devicelabel $facet $dm_dev)-super.width=$seq_width"
+ 		fi
+@@ -2474,6 +2521,8 @@ mount_facet() {
+ 				grep -E ':[a-zA-Z]{3}[0-9]{4}'" "" ||
+ 				error "$dm_dev failed to initialize!";;
+ 
++		mem)
++			:;;
+ 		*)
+ 			error "unknown fstype!";;
+ 		esac
+@@ -2485,13 +2534,14 @@ mount_facet() {
+ 		do_facet $facet "sync; sleep 1; sync"
+ 	fi
+ 
++	if [[ -z "$MEM_OSS" ]] && [[ -z "$MEM_MDS" ]]; then
++		label=$(devicelabel ${facet} $dm_dev)
++		[ -z "$label" ] && echo no label for $dm_dev && exit 1
++		eval export ${facet}_svc=${label}
++		echo Started ${label}
+ 
+-	label=$(devicelabel ${facet} $dm_dev)
+-	[ -z "$label" ] && echo no label for $dm_dev && exit 1
+-	eval export ${facet}_svc=${label}
+-	echo Started ${label}
+-
+-	export_dm_dev $facet $dm_dev
++		export_dm_dev $facet $dm_dev
++	fi
+ 
+ 	return $RC
+ }
+@@ -5394,6 +5444,9 @@ formatall() {
+ 
+ 	export OST_INDICES=($(hostlist_expand "$OST_INDEX_LIST"))
+ 	check_ost_indices
++
++	[[ -n "$MEM_OSS" ]] && return
++
+ 	for num in $(seq $OSTCOUNT); do
+ 		format_ost $num
+ 	done
+diff --git a/lustre/utils/Makefile.am b/lustre/utils/Makefile.am
+index 30a28b6403..1dc170238a 100644
+--- a/lustre/utils/Makefile.am
++++ b/lustre/utils/Makefile.am
+@@ -211,6 +211,22 @@ PLUGIN_LIB += libmount_utils_ldiskfs.a
+ endif # PLUGINS
+ endif # LDISKFS_ENABLED
+ 
++noinst_LIBRARIES += libmount_utils_mem.a
++
++libmount_utils_mem_a_SOURCES = libmount_utils_mem.c
++libmount_utils_mem_a_CPPFLAGS :=
++
++if PLUGINS
++lib_LTLIBRARIES += libmount_utils_mem.la
++libmount_utils_mem.la : libmount_utils_mem.a
++	$(CC) $(LDFLAGS) $(MNTMODLDFLAGS) -shared -export-dynamic \
++			 -o mount_osd_mem.so \
++			 `$(AR) -t libmount_utils_mem.a` \
++			 $(MNTMODLIBS)
++else
++PLUGIN_LIB += libmount_utils_mem.a
++endif # PLUGINS
++
+ mount_lustre_SOURCES = mount_lustre.c mount_utils.c mount_utils.h $(GSSSRC)
+ mount_lustre_CPPFLAGS := ${MNTMODCFLAGS}
+ mount_lustre_LDFLAGS  := ${MNTMODLDFLAGS}
+diff --git a/lustre/utils/libmount_utils_mem.c b/lustre/utils/libmount_utils_mem.c
+new file mode 100644
+index 0000000000..98c30af676
+--- /dev/null
++++ b/lustre/utils/libmount_utils_mem.c
+@@ -0,0 +1,201 @@
++// SPDX-License-Identifier: GPL-2.0
++
++/*
++ * Author: Timothy Day <tday141@gmail.com>
++ */
++
++#include "mount_utils.h"
++
++#define VAR_SIZE 128
++
++enum osd_tgt_type {
++	MGT,
++	MDT,
++	OST,
++	INVALID
++};
++
++int mem_write_ldd(struct mkfs_opts *mop)
++{
++	return 0;
++}
++
++int mem_erase_ldd(struct mkfs_opts *mop, char *param)
++{
++	return 0;
++}
++
++int mem_read_ldd(char *ds, struct lustre_disk_data *ldd)
++{
++	enum osd_tgt_type tgt_type = INVALID;
++	char tgt_type_var[VAR_SIZE];
++	char name_var[VAR_SIZE];
++	char params[2 * VAR_SIZE];
++	char svname[VAR_SIZE];
++
++	ldd->ldd_magic = LDD_MAGIC;
++	ldd->ldd_feature_compat = 0;
++	ldd->ldd_feature_rocompat = 0;
++	ldd->ldd_feature_incompat = 0;
++	ldd->ldd_config_ver = 1;
++	ldd->ldd_mount_type = LDD_MT_MEM;
++
++	if (!getenv("OSD_MEM_TGT_TYPE")) {
++		fprintf(stderr, "OSD_MEM_TGT_TYPE is undefined\n");
++		return -EINVAL;
++	}
++
++	strscpy(tgt_type_var, getenv("OSD_MEM_TGT_TYPE"), VAR_SIZE);
++
++	if (!strcmp(tgt_type_var, "MGT")) {
++		ldd->ldd_flags = LDD_F_UPDATE | LDD_F_VIRGIN |
++			LDD_F_SV_TYPE_MGS;
++		tgt_type = MGT;
++	}
++
++	if (!strcmp(tgt_type_var, "MDT")) {
++		if (!getenv("OSD_MEM_PRIMARY_MDT")) {
++			ldd->ldd_flags = LDD_F_UPDATE | LDD_F_VIRGIN |
++				LDD_F_SV_TYPE_MDT;
++		} else {
++			fprintf(stderr, "Combined MGS/MDS\n");
++			ldd->ldd_flags = LDD_F_UPDATE | LDD_F_VIRGIN |
++				LDD_F_SV_TYPE_MDT | LDD_F_SV_TYPE_MGS;
++		}
++
++		tgt_type = MDT;
++	}
++
++	if (!strcmp(tgt_type_var, "OST")) {
++		ldd->ldd_flags = LDD_F_UPDATE | LDD_F_VIRGIN |
++			LDD_F_SV_TYPE_OST;
++		tgt_type = OST;
++	}
++
++	if (tgt_type == INVALID) {
++		fprintf(stderr, "OSD_MEM_TGT_TYPE is invalid\n");
++		return -EINVAL;
++	}
++
++	fprintf(stderr, "OSD_MEM_TGT_TYPE=%s\n",
++		tgt_type_var);
++
++	if (!getenv("OSD_MEM_FSNAME"))
++		strscpy(name_var, "lustre", VAR_SIZE);
++	else
++		strscpy(name_var, getenv("OSD_MEM_FSNAME"), VAR_SIZE);
++
++	fprintf(stderr, "OSD_MEM_FSNAME=%s\n",
++		name_var);
++
++	strscpy(ldd->ldd_fsname, name_var, VAR_SIZE);
++
++	if (!getenv("OSD_MEM_INDEX")) {
++		fprintf(stderr, "OSD_MEM_INDEX is undefined\n");
++		return -EINVAL;
++	}
++
++	ldd->ldd_svindex = strtol(getenv("OSD_MEM_INDEX"),
++				  NULL, 0);
++
++	fprintf(stderr, "OSD_MEM_INDEX=%i\n",
++		ldd->ldd_svindex);
++
++	if (tgt_type == MGT)
++		sprintf(svname, "%s:%s%04x", ldd->ldd_fsname,
++			"MGS", ldd->ldd_svindex);
++
++	if (tgt_type == MDT)
++		sprintf(svname, "%s:%s%04x", ldd->ldd_fsname,
++			"MDT", ldd->ldd_svindex);
++
++	if (tgt_type == OST)
++		sprintf(svname, "%s:%s%04x", ldd->ldd_fsname,
++			"OST", ldd->ldd_svindex);
++
++	strscpy(ldd->ldd_svname, svname, VAR_SIZE);
++
++	fprintf(stderr, "svname -> %s\n", svname);
++
++	if (!getenv("OSD_MEM_MGS_NID")) {
++		fprintf(stderr, "OSD_MEM_MGS_NID is undefined\n");
++		return -EINVAL;
++	}
++
++	if (tgt_type != MGT)
++		sprintf(params, "mgsnode=%s",
++			getenv("OSD_MEM_MGS_NID"));
++
++	strscpy(ldd->ldd_params, params, VAR_SIZE);
++
++	fprintf(stderr, "params -> %s\n", params);
++
++	return 0;
++}
++
++void mem_print_ldd_params(struct mkfs_opts *mop)
++{
++}
++
++int mem_is_lustre(char *ds, unsigned int *mount_type)
++{
++	return 1;
++}
++
++int mem_make_lustre(struct mkfs_opts *mop)
++{
++	return 0;
++}
++
++int mem_enable_quota(struct mkfs_opts *mop)
++{
++	return -ENOSYS;
++}
++
++int mem_prepare_lustre(struct mkfs_opts *mop,
++		       char *wanted_mountopts, size_t len)
++{
++	return 0;
++}
++
++int mem_tune_lustre(char *dev, struct mount_opts *mop)
++{
++	return 0;
++}
++
++int mem_label_lustre(struct mount_opts *mop)
++{
++	return 0;
++}
++
++int mem_rename_fsname(struct mkfs_opts *mop, const char *oldname)
++{
++	return 0;
++}
++
++int mem_init(void)
++{
++	return 0;
++}
++
++void mem_fini(void)
++{
++}
++
++#ifndef PLUGIN_DIR
++struct module_backfs_ops mem_ops = {
++	.init			= mem_init,
++	.fini			= mem_fini,
++	.read_ldd		= mem_read_ldd,
++	.write_ldd		= mem_write_ldd,
++	.erase_ldd		= mem_erase_ldd,
++	.print_ldd_params	= mem_print_ldd_params,
++	.is_lustre		= mem_is_lustre,
++	.make_lustre		= mem_make_lustre,
++	.prepare_lustre		= mem_prepare_lustre,
++	.tune_lustre		= mem_tune_lustre,
++	.label_lustre		= mem_label_lustre,
++	.enable_quota		= mem_enable_quota,
++	.rename_fsname		= mem_rename_fsname,
++};
++#endif /* PLUGIN_DIR */
+diff --git a/lustre/utils/mkfs_lustre.c b/lustre/utils/mkfs_lustre.c
+index db5be76bc6..30901a342b 100644
+--- a/lustre/utils/mkfs_lustre.c
++++ b/lustre/utils/mkfs_lustre.c
+@@ -89,10 +89,6 @@ static int print_only;
+  #define FSLIST_ZFS ""
+ #endif /* HAVE_ZFS_OSD */
+ 
+-#ifndef HAVE_FSLIST
+- #error "no backing OSD types (ldiskfs or ZFS) are configured"
+-#endif
+-
+ #define FSLIST FSLIST_LDISKFS FSLIST_ZFS
+ 
+ static void usage(FILE *out)
+diff --git a/lustre/utils/mount_lustre.c b/lustre/utils/mount_lustre.c
+index 78dd13cf9d..ada45c36b0 100644
+--- a/lustre/utils/mount_lustre.c
++++ b/lustre/utils/mount_lustre.c
+@@ -713,6 +713,21 @@ static int parse_opts(int argc, char *const argv[], struct mount_opts *mop)
+ 		}
+ 	}
+ 
++	/* osd-mem lustre_tgt */
++	if (optind + 1 == argc) {
++		mop->mo_ldd.ldd_mount_type = LDD_MT_MEM;
++		mop->mo_usource = "lustre-mem";
++		mop->mo_source = strdup(mop->mo_usource);
++		if (!realpath(argv[optind], mop->mo_target)) {
++			rc = errno;
++			fprintf(stderr, "warning: %s: cannot resolve: %s\n",
++				argv[optind], strerror(errno));
++			return rc;
++		}
++
++		return 0;
++	}
++
+ 	if (optind + 2 > argc) {
+ 		fprintf(stderr, "%s: too few arguments\n", progname);
+ 		usage(stderr);
+diff --git a/lustre/utils/mount_utils.h b/lustre/utils/mount_utils.h
+index c51cf1f6a5..791e1f171b 100644
+--- a/lustre/utils/mount_utils.h
++++ b/lustre/utils/mount_utils.h
+@@ -135,7 +135,9 @@ static inline const char *mt_str(enum ldd_mount_type mt)
+ 		"reiserfs",
+ 		"ldiskfs2",
+ 		"zfs",
++		"mem",
+ 	};
++
+ 	return mount_type_string[mt];
+ }
+ 
+@@ -148,6 +150,7 @@ static inline const char *mt_type(enum ldd_mount_type mt)
+ 		"osd-reiserfs",
+ 		"osd-ldiskfs",
+ 		"osd-zfs",
++		"osd-mem",
+ 	};
+ 	return mount_type_string[mt];
+ }
+-- 
+2.27.0
+

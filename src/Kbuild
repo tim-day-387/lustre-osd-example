@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0
+
+obj-m := osd_mem.o
+osd_mem-y := osd_handler.o osd_quota.o osd_object.o
+osd_mem-y += osd_io.o osd_oi.o osd_index.o osd_alloc.o
