@@ -1,0 +1,79 @@
+Lustre OSD Example
+==================
+
+Implements a simple in-memory OSD device for Lustre. This enables
+Lustre servers to be run without any backing filesystem, such as
+ldiskfs or openZFS.
+
++--------------------------------------------------------------------+
+| This is for learning purposes only! Do NOT use for important data! |
+| Only bugs and data corruption lie ahead! Turn back now!            |
++--------------------------------------------------------------------+
+
+Object Handling
+---------------
+  All object data is stored in memory referenced by osd_data structs.
+  The osd_object exists as a sort of ephemeral handle through which
+  the upper layers of Lustre can refer to the underlying data stored
+  in the OSD. The uppers layers manage the lifetimes of osd_objects;
+  although the OSD is responsible for filling in setup/teardown
+  functions.
+
+  Each FID has a single associated osd_object (the upper layers
+  manage this mapping). The OSD uses an rhashtable to map the
+  osd_object (and FID) to the corresponding osd_data (in osd_oi.c).
+
+  Regular objects use a single osd_buf. osd_buf are implemented by
+  allocating physical pages and vmap'ing them into a contiguous
+  virtual address space. This allows us to present the memory as
+  either a flat address space (for osd_read/write) or a collection
+  of pages (for osd_bufs_get/put).
+
+  Index objects use a linked list of lu_buf. Some indices have
+  entries generated on the fly (and hence require their own set
+  of operations).
+
+  The xattrs are also implemented using a linked list of lu_buf,
+  almost identically to regular indices. Regular attrs are stored
+  as a bit field in osd_data.
+
+  Other quick implementation notes:
+  - Implemented osd_statfs() (but not space accounting)
+  - Remove LFSCK support and lprocfs cruft (for now?)
+  - Remove osd_declare_* functions (we write directly to memory)
+  - Implemented small reads/writes, index operations, and iterators
+  - Implemented xattr handling (handled similarly to indices)
+  - Implemented dir index! (some entries are virtualized)
+  - File attrs for osd_objects are saved to osd_data
+  - Used generics in osd as much as possible
+
+Testing
+-------
+  A new test script, sanity-osd.sh has been provided to simplify
+  OSD debugging. It allows for testing individual MGT, MDT, and OST
+  targets and enables running llog unit tests against the OSD. A
+  subnet of sanity.sh runs (and passes) on a full OSD mem filesystem.
+  The standard llmount.sh/llmountcleanup.sh scripts can be used
+  with some special variables.
+
+Debugging
+---------
+- Added a limited amount of custom OSD debugging (to trace osd, lu,
+  and dt objects along with their FIDs and state). This can be
+  dumped to the kernel log via 'verbose_debug' parameter.
+- Use special ENV variables to control the mount helper to enable
+  fine tuned control.
+
+Progress
+--------
+- Driver can support multiple concurrent server mounts, along
+  with a concurrent client mount
+- All llog kunit tests pass!
+- Some basic sanity.sh tests pass!
+- Basic test-framework.sh support (can create FS with either
+  osd-mem OSS, MDS, or both)
+- MGT target works! (can send llogs, configurations, register
+  other targets against it)
+- MDT target mostly works! (can create files, dirs, symlinks)
+- OSS target mostly works! (can create files, the data is the
+  same after cache flush, and mount/umount)

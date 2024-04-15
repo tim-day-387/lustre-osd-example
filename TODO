@@ -25,12 +25,6 @@ Learnings (Update OSD docs)
   provides all of the information we need to
   implement this functionality
 
-Progress
-- MGS works! It handles llogs correctly and allows
-  other targets to start.
-- MDT (mostly) works! We can create files, dirs, and
-  symlinks. A number of sanity.sh tests pass.
-
 TODO (Debugging)
 - Need to map FIDs to something more
   meaningful!
@@ -38,8 +32,6 @@ TODO (Debugging)
   transactions, better state logs)
 - Add better object lifecycle logging
 - Add invariant checks alongside tracing
-- The dir iterator is certainly broken! Probably
-  something with the hash? Add more debug!
 
 TOOD (Bugs)
 - osd_statfs() sets up a bunch of state
@@ -51,8 +43,6 @@ TOOD (Bugs)
   to callers
 - osd_oi.c has a bunch of FID cruft that can
   be moved
-- Failing on IT_OPEN | IT_CREAT call with
-  ENOSPC?
 - Do proper attr management; we should capture
   all data passed about osd_object and push it
   to osd_data
@@ -60,8 +50,6 @@ TOOD (Bugs)
   think of ways to reduce this?
 - Check lustre/include/dt_object.h for proper
   return codes on functions?
-- Express lu_buf via vmmap and manual page
-  management?
 - The parent/child relationship isn't likely
   being expressed correctly?
 - On cleanup, we can crash on osp_sync_thread(), with
