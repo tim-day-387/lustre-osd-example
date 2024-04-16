@@ -93,6 +93,14 @@ struct osd_object {
 	/* used to implement osd_*_{lock|unlock} */
 	struct rw_semaphore	 oo_sem;
 
+	/* Used to protect osd_data osd_buf from
+	 * concurrent grow/shrink. ldlm should protect
+	 * concurrent data access, but not how we
+	 * manage memory.
+	 * TODO: Find a better way!
+	 */
+	struct semaphore	 oo_sem_data;
+
 	/* data osd_object refers to */
 	struct osd_data		*oo_data;
 

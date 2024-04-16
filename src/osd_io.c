@@ -24,18 +24,26 @@ static ssize_t osd_read(const struct lu_env *env, struct dt_object *dt,
 	struct osd_object *osd = osd_obj(dt);
 	struct osd_data *data = osd->oo_data;
 	struct osd_buf *sbuf = &data->od_buf;
-	ssize_t avail = *pos >= sbuf->ob_len ? 0 :
+	ssize_t avail;
+	ssize_t size;
+
+	down(&osd->oo_sem_data);
+
+	avail = *pos >= sbuf->ob_len ? 0 :
 		sbuf->ob_len - *pos;
-	ssize_t size = buf->lb_len > avail ? avail :
+	size = buf->lb_len > avail ? avail :
 		buf->lb_len;
 
 	ENTRY;
 
-	if (size > avail)
+	if (size > avail) {
+		up(&osd->oo_sem_data);
 		RETURN(-EBADR);
+	}
 
 	memcpy(buf->lb_buf, sbuf->ob_buf + *pos, size);
 	*pos += size;
+	up(&osd->oo_sem_data);
 
 	OSD_TRACE(dt);
 	OSD_DEBUG("TLSZ=%li,TLSUM=%hu,OFFSET=%lli,READSZ=%li,READSUM=%hu,AVAIL=%li\n",
@@ -57,11 +65,15 @@ static ssize_t osd_write(const struct lu_env *env, struct dt_object *dt,
 
 	ENTRY_TH(th);
 
+	down(&osd->oo_sem_data);
 	rc = osd_buf_cpy_ptr(dbuf, sbuf->lb_buf, sbuf->lb_len, *pos);
-	if (rc)
+	if (rc) {
+		up(&osd->oo_sem_data);
 		RETURN_TH(th, rc);
+	}
 
 	*pos += sbuf->lb_len;
+	up(&osd->oo_sem_data);
 
 	OSD_TRACE(dt);
 	OSD_DEBUG("TLSZ=%li,TLSUM=%hu,OFFSET=%lli,WRITESZ=%li,WRITESUM=%hu\n",
@@ -109,11 +121,24 @@ static int osd_bufs_get(const struct lu_env *env, struct dt_object *dt,
 		  offset, len,
 		  (rw & DT_BUFS_TYPE_WRITE) ? "WRITE" : "READ");
 
+	down(&obj->oo_sem_data);
 	rc = osd_buf_check_and_grow(buf, nbuf_sz);
-	if (rc)
+	if (rc) {
+		up(&obj->oo_sem_data);
 		RETURN(rc);
+	}
 
 	eof = data->od_attr.la_size;
+	if (!eof && (rw & DT_BUFS_TYPE_READ)) {
+		lnb->lnb_file_offset = 0;
+		lnb->lnb_page_offset = 0;
+		lnb->lnb_len = 0;
+		lnb->lnb_flags = 0;
+		lnb->lnb_page = NULL;
+		lnb->lnb_rc = 0;
+		up(&obj->oo_sem_data);
+		return 1;
+	}
 
 	while (len > 0) {
 		poff = offset % PAGE_SIZE;
@@ -153,12 +178,14 @@ static int osd_bufs_get(const struct lu_env *env, struct dt_object *dt,
 			  offset, len);
 	}
 
+	up(&obj->oo_sem_data);
 	RETURN(npages);
 
 out_err:
 	if (npages > 0)
 		osd_bufs_put(env, dt, lnb - npages, npages);
 
+	up(&obj->oo_sem_data);
 	RETURN(rc);
 }
 

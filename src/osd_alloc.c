@@ -29,10 +29,7 @@ void osd_buf_free(struct osd_buf *buf)
 			__free_page(buf->ob_pages[i]);
 
 	OBD_FREE(buf->ob_pages, sizeof(struct page *) * buf->ob_npages);
-	buf->ob_buf = NULL;
-	buf->ob_len = 0;
-	buf->ob_pages = NULL;
-	buf->ob_npages = 0;
+	memset(buf, 0, sizeof(struct osd_buf));
 }
 
 static unsigned int get_npages(size_t size)
@@ -86,10 +83,7 @@ free_pages:
 			__free_page(buf->ob_pages[i]);
 
 	OBD_FREE(buf->ob_pages, sizeof(struct page *) * npages);
-	buf->ob_buf = NULL;
-	buf->ob_len = 0;
-	buf->ob_pages = NULL;
-	buf->ob_npages = 0;
+	memset(buf, 0, sizeof(struct osd_buf));
 }
 
 int osd_buf_check_and_grow(struct osd_buf *buf, size_t len)
@@ -105,11 +99,10 @@ int osd_buf_check_and_grow(struct osd_buf *buf, size_t len)
 	if (!nbuf.ob_buf)
 		return -ENOMEM;
 
-	if (buf->ob_buf) {
+	if (buf->ob_buf)
 		memcpy(nbuf.ob_buf, buf->ob_buf, buf->ob_len);
-		osd_buf_free(buf);
-	}
 
+	osd_buf_free(buf);
 	memcpy(buf, &nbuf, sizeof(struct osd_buf));
 
 	return 0;
