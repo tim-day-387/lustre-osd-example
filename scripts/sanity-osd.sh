@@ -497,6 +497,9 @@ function om_all() {
 
 	# Run sanity tests
 	run_osd_test 70 "osd-mem sanity test"
+
+	# Compile Lustre on Lustre!
+	run_osd_test 80 "compile Lustre on Lustre"
 }
 
 function om_obd() {

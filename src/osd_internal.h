@@ -37,7 +37,6 @@ extern const struct rhashtable_params osd_data_params;
 extern int verbose_debug;
 
 struct osd_buf {
-	void		       *ob_buf;
 	size_t			ob_len;
 	struct page	      **ob_pages;
 	unsigned int		ob_npages;
@@ -273,17 +272,12 @@ int osd_get_object_count(void);
  */
 
 void osd_buf_free(struct osd_buf *buf);
-void osd_buf_alloc(struct osd_buf *buf, size_t size);
+int osd_buf_alloc(struct osd_buf *buf, size_t size);
 int osd_buf_check_and_grow(struct osd_buf *buf, size_t len);
-int osd_buf_cpy_ptr(struct osd_buf *dst, void *src, size_t len,
-		    loff_t off);
-
-static inline int osd_buf_cpy(struct osd_buf *dst,
-			      const struct osd_buf *src,
-			      loff_t off)
-{
-	return osd_buf_cpy_ptr(dst, src->ob_buf, src->ob_len, off);
-}
+int osd_buf_read(struct osd_buf *src, void *dst, size_t len,
+		 loff_t off);
+int osd_buf_write(struct osd_buf *dst, void *src, size_t len,
+		  loff_t off);
 
 /*
  * Custom Lustre debugging macros
@@ -316,13 +310,12 @@ static inline void osd_dt_trace(const struct dt_object *dt,
 	struct osd_object *oo = osd_obj(dt);
 	struct osd_data *data = oo->oo_data;
 
-	libcfs_debug_msg(msgdata, "TRACE n=%i e=%i ind=%i f=" DFID " r=%i p=%p rd=%i:%i\n",
+	libcfs_debug_msg(msgdata, "TRACE n=%i e=%i ind=%i f=" DFID " r=%i rd=%i:%i\n",
 			 oo->oo_tracking_num,
 			 dt_object_exists(dt),
 			 oo->oo_is_index,
 			 PFID(lu_object_fid(lu_dt_obj(dt))),
 			 osd_remote_fid(osd_obj2dev(oo), lu_object_fid(lu_dt_obj(dt))),
-			 (data ? data->od_buf.ob_buf : NULL),
 			 (data ? S_ISREG(data->od_attr.la_mode) : 0),
 			 (data ? S_ISDIR(data->od_attr.la_mode) : 0));
 }
@@ -333,13 +326,12 @@ static inline void osd_lu_trace(const struct lu_object *lu,
 	struct osd_object *oo = osd_obj(lu);
 	struct osd_data *data = oo->oo_data;
 
-	libcfs_debug_msg(msgdata, "TRACE n=%i e=%i ind=%i f=" DFID " r=%i p=%p rd=%i:%i\n",
+	libcfs_debug_msg(msgdata, "TRACE n=%i e=%i ind=%i f=" DFID " r=%i rd=%i:%i\n",
 			 oo->oo_tracking_num,
 			 lu_object_exists(lu),
 			 oo->oo_is_index,
 			 PFID(lu_object_fid(lu)),
 			 osd_remote_fid(osd_obj2dev(oo), lu_object_fid(lu)),
-			 (data ? data->od_buf.ob_buf : NULL),
 			 (data ? S_ISREG(data->od_attr.la_mode) : 0),
 			 (data ? S_ISDIR(data->od_attr.la_mode) : 0));
 }

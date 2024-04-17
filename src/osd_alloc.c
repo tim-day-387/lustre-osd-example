@@ -17,12 +17,10 @@ void osd_buf_free(struct osd_buf *buf)
 
 	LASSERT(buf);
 
-	if (!buf->ob_buf)
+	if (!buf->ob_pages)
 		return;
 
-	LASSERT(buf->ob_len > 0);
-
-	vunmap(buf->ob_buf);
+	LASSERT(buf->ob_npages > 0);
 
 	for (i = 0; i < buf->ob_npages; i++)
 		if (buf->ob_pages[i])
@@ -42,13 +40,12 @@ static unsigned int get_npages(size_t size)
 	return result;
 }
 
-void osd_buf_alloc(struct osd_buf *buf, size_t size)
+int osd_buf_alloc(struct osd_buf *buf, size_t size)
 {
 	unsigned int npages;
 	unsigned int i;
 
 	LASSERT(buf);
-	LASSERT(buf->ob_buf == NULL);
 	LASSERT(buf->ob_len == 0);
 	LASSERT(buf->ob_pages == NULL);
 	LASSERT(buf->ob_npages == 0);
@@ -57,25 +54,20 @@ void osd_buf_alloc(struct osd_buf *buf, size_t size)
 
 	OBD_ALLOC(buf->ob_pages, sizeof(struct page *) * npages);
 	if (!buf->ob_pages)
-		return;
+		return -ENOMEM;
 
 	memset(buf->ob_pages, 0, sizeof(struct page *) * npages);
 	buf->ob_npages = npages;
 	buf->ob_len = size;
 
 	for (i = 0; i < npages; i++) {
-		buf->ob_pages[i] = alloc_page(GFP_NOFS);
+		buf->ob_pages[i] = alloc_page(GFP_NOFS & ~__GFP_HIGHMEM);
 
 		if (!buf->ob_pages[i])
 			goto free_pages;
 	}
 
-	buf->ob_buf = vmap(buf->ob_pages, npages,
-			   VM_MAP, PAGE_KERNEL);
-	if (!buf->ob_buf)
-		goto free_pages;
-
-	return;
+	return 0;
 
 free_pages:
 	for (i = 0; i < npages; i++)
@@ -84,47 +76,115 @@ free_pages:
 
 	OBD_FREE(buf->ob_pages, sizeof(struct page *) * npages);
 	memset(buf, 0, sizeof(struct osd_buf));
+
+	return -ENOMEM;
 }
 
 int osd_buf_check_and_grow(struct osd_buf *buf, size_t len)
 {
-	struct osd_buf nbuf;
+	struct page **tmp_pages;
+	unsigned int npages;
+	unsigned int i;
 
-	if (len <= buf->ob_len)
+	LASSERT(buf);
+
+	npages = get_npages(len);
+
+	if (npages <= buf->ob_npages)
 		return 0;
 
-	memset(&nbuf, 0, sizeof(struct osd_buf));
+	if (!buf->ob_pages)
+		return osd_buf_alloc(buf, len);
 
-	osd_buf_alloc(&nbuf, len);
-	if (!nbuf.ob_buf)
+	OBD_ALLOC(tmp_pages, sizeof(struct page *) * npages);
+	if (!tmp_pages)
 		return -ENOMEM;
 
-	if (buf->ob_buf)
-		memcpy(nbuf.ob_buf, buf->ob_buf, buf->ob_len);
+	memset(tmp_pages, 0, sizeof(struct page *) * npages);
+	memcpy(tmp_pages, buf->ob_pages, sizeof(struct page *) * buf->ob_npages);
 
-	osd_buf_free(buf);
-	memcpy(buf, &nbuf, sizeof(struct osd_buf));
+	for (i = buf->ob_npages; i < npages; i++) {
+		tmp_pages[i] = alloc_page(GFP_NOFS & ~__GFP_HIGHMEM);
+
+		if (!tmp_pages[i])
+			goto free_pages;
+	}
+
+	OBD_FREE(buf->ob_pages, sizeof(struct page *) * buf->ob_npages);
+	buf->ob_pages = tmp_pages;
+	buf->ob_npages = npages;
+	buf->ob_len = len;
+
+	return 0;
+
+free_pages:
+	for (i = buf->ob_npages; i < npages; i++)
+		if (tmp_pages[i])
+			__free_page(tmp_pages[i]);
+
+	OBD_FREE(tmp_pages, sizeof(struct page *) * npages);
+
+	return -ENOMEM;
+}
+
+int osd_buf_read(struct osd_buf *src, void *dst, size_t len,
+		 loff_t off)
+{
+	unsigned int startp = off / PAGE_SIZE;
+	unsigned int i;
+	size_t poff = off % PAGE_SIZE;
+	size_t read = 0;
+	size_t read_size;
+
+	if (startp > src->ob_npages)
+		return -EBADR;
+
+	for (i = startp; i < src->ob_npages; i++) {
+		read_size = len < (PAGE_SIZE - poff) ? len :
+			(PAGE_SIZE - poff);
+		if (!read_size)
+			break;
+
+		memcpy(dst + read,
+		       page_address(src->ob_pages[i]) + poff,
+		       read_size);
+
+		poff = 0;
+		len -= read_size;
+		read += read_size;
+	}
 
 	return 0;
 }
 
-int osd_buf_cpy_ptr(struct osd_buf *dst, void *src, size_t len,
-		    loff_t off)
+int osd_buf_write(struct osd_buf *dst, void *src, size_t len,
+		  loff_t off)
 {
+	unsigned int startp = off / PAGE_SIZE;
+	unsigned int i;
 	size_t size = len + off;
+	size_t poff = off % PAGE_SIZE;
+	size_t written = 0;
+	size_t write_size;
 	int rc = 0;
-
-	if (!dst->ob_buf)
-		osd_buf_alloc(dst, size);
-
-	if (!dst->ob_buf)
-		return -ENOMEM;
 
 	rc = osd_buf_check_and_grow(dst, size);
 	if (rc)
 		return rc;
 
-	memcpy(dst->ob_buf + off, src, len);
+	for (i = startp; i < dst->ob_npages; i++) {
+		write_size = len < (PAGE_SIZE - poff) ? len :
+			(PAGE_SIZE - poff);
+		if (!write_size)
+			break;
+
+		memcpy(page_address(dst->ob_pages[i]) + poff,
+		       src + written, write_size);
+
+		poff = 0;
+		len -= write_size;
+		written += write_size;
+	}
 
 	return 0;
 }

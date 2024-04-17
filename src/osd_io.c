@@ -14,7 +14,6 @@
 #include <lustre_disk.h>
 #include <lustre_fid.h>
 #include <lustre_quota.h>
-#include <net/checksum.h>
 
 #include "osd_internal.h"
 
@@ -26,6 +25,7 @@ static ssize_t osd_read(const struct lu_env *env, struct dt_object *dt,
 	struct osd_buf *sbuf = &data->od_buf;
 	ssize_t avail;
 	ssize_t size;
+	int rc;
 
 	down(&osd->oo_sem_data);
 
@@ -41,16 +41,18 @@ static ssize_t osd_read(const struct lu_env *env, struct dt_object *dt,
 		RETURN(-EBADR);
 	}
 
-	memcpy(buf->lb_buf, sbuf->ob_buf + *pos, size);
+	rc = osd_buf_read(sbuf, buf->lb_buf, size, *pos);
+	if (rc) {
+		up(&osd->oo_sem_data);
+		RETURN(-EBADR);
+	}
+
 	*pos += size;
 	up(&osd->oo_sem_data);
 
 	OSD_TRACE(dt);
-	OSD_DEBUG("TLSZ=%li,TLSUM=%hu,OFFSET=%lli,READSZ=%li,READSUM=%hu,AVAIL=%li\n",
-		  sbuf->ob_len,
-		  (u16)ip_compute_csum(data->od_buf.ob_buf, data->od_buf.ob_len),
-		  *pos, size, (u16)ip_compute_csum(buf->lb_buf, buf->lb_len),
-		  avail);
+	OSD_DEBUG("TLSZ=%li,OFFSET=%lli,READSZ=%li,AVAIL=%li\n",
+		  sbuf->ob_len, *pos, size, avail);
 	RETURN(size);
 }
 
@@ -66,21 +68,21 @@ static ssize_t osd_write(const struct lu_env *env, struct dt_object *dt,
 	ENTRY_TH(th);
 
 	down(&osd->oo_sem_data);
-	rc = osd_buf_cpy_ptr(dbuf, sbuf->lb_buf, sbuf->lb_len, *pos);
+	rc = osd_buf_write(dbuf, sbuf->lb_buf, sbuf->lb_len, *pos);
 	if (rc) {
 		up(&osd->oo_sem_data);
 		RETURN_TH(th, rc);
 	}
 
 	*pos += sbuf->lb_len;
+	if (*pos > dbuf->ob_len)
+		dbuf->ob_len = *pos;
 	up(&osd->oo_sem_data);
 
 	OSD_TRACE(dt);
-	OSD_DEBUG("TLSZ=%li,TLSUM=%hu,OFFSET=%lli,WRITESZ=%li,WRITESUM=%hu\n",
+	OSD_DEBUG("TLSZ=%li,OFFSET=%lli,WRITESZ=%li\n",
 		  data->od_buf.ob_len,
-		  (u16)ip_compute_csum(data->od_buf.ob_buf, data->od_buf.ob_len),
-		  *pos, sbuf->lb_len,
-		  (u16)ip_compute_csum(sbuf->lb_buf, sbuf->lb_len));
+		  *pos, sbuf->lb_len);
 	RETURN_TH(th, sbuf->lb_len);
 }
 
@@ -99,7 +101,7 @@ static int osd_bufs_put(const struct lu_env *env, struct dt_object *dt,
 }
 
 /*
- * This need more work to avoid corruption!
+ * TODO: Split this into read/write, similar to openZFS OSD!
  */
 static int osd_bufs_get(const struct lu_env *env, struct dt_object *dt,
 			loff_t offset, ssize_t len, struct niobuf_local *lnb,
