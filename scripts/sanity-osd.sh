@@ -386,6 +386,81 @@ function test_70() {
 	return 0
 }
 
+#
+# Setup a filesystem with OSD mem for all servers and run a compile
+# test.
+#
+function test_80() {
+	local dev_path="/sys/kernel/debug/lustre/devices"
+
+	insmod build/osd_mem.ko || error "load_module failed"
+
+	stack_trap "run_osd_cleanup"
+
+	# Setup servers
+	export MEM_MDS="1"
+	export MEM_OSS="1"
+	formatall
+	setupall server_only
+	$LCTL set_param mdt.*.identity_upcall=NONE
+	mountcli
+
+	# Get Lustre source
+	chmod 777 /mnt/lustre
+	cd /mnt/lustre
+	git clone git://git.whamcloud.com/fs/lustre-release.git
+
+	# umount/mount
+	sync; echo 3 > /proc/sys/vm/drop_caches
+	cd /
+	umount /mnt/lustre
+	mountcli
+
+	# Check for files
+	cd /mnt/lustre/lustre-release
+	ls
+
+	# Configure
+	cd /mnt/lustre/lustre-release
+	./autogen.sh
+	./configure --disable-server
+
+	# umount/mount
+	sync; echo 3 > /proc/sys/vm/drop_caches
+	cd /
+	umount /mnt/lustre
+	mountcli
+
+	# Check for files
+	cd /mnt/lustre/lustre-release
+	ls
+
+	# Configure
+	cd /mnt/lustre/lustre-release
+	make -j$(nproc) -s
+
+	# umount/mount
+	sync; echo 3 > /proc/sys/vm/drop_caches
+	cd /
+	umount /mnt/lustre
+	mountcli
+
+	# Check for files
+	cd /mnt/lustre/lustre-release
+	find . -name *.ko
+
+	# umount
+	sync; echo 3 > /proc/sys/vm/drop_caches
+	cd /
+	umount /mnt/lustre
+
+	# Perform cleanup
+	sleep 10
+	run_osd_cleanup
+
+	return 0
+}
+
 function om_list() {
 	less -F <<EOF
 Usage: ${0##*/} [options]
@@ -463,6 +538,11 @@ function om_sanity() {
 	run_osd_test 70 "osd-mem sanity test"
 }
 
+function om_compile() {
+	export VB_OSD_DEBUG=0
+	run_osd_test 80 "compile Lustre on Lustre"
+}
+
 # Run as root or with sudo
 if [[ "$EUID" -ne 0 ]]; then
 	echo "Please run as root or with sudo."
@@ -488,6 +568,7 @@ for arg in "$@"; do
 		mdt_mount) om_mdt_mount;;
 		mgt_mdt_sanity) om_mgt_mdt_sanity;;
 		sanity) om_sanity;;
+		compile) om_compile;;
 		llog) om_llog;;
 		list) om_list;;
 		*) om_list;;
