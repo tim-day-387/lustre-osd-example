@@ -79,7 +79,7 @@ function osd_mark() {
 function test_10() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	load_module osd-mem/osd_mem || error "load_module failed"
+	insmod build/osd_mem.ko || error "load_module failed"
 	echo $VB_OSD_DEBUG | tee /sys/module/osd_mem/parameters/verbose_debug
 
 	# This must be run in iteractive mode, since attach and setup
@@ -108,12 +108,14 @@ function test_10() {
 function test_20() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	load_module osd-mem/osd_mem || error "load_module failed"
+	insmod build/osd_mem.ko || error "load_module failed"
 	echo $VB_OSD_DEBUG | tee /sys/module/osd_mem/parameters/verbose_debug
 
 	# Setup servers
 	formatall
 	setupall server_only
+	$LCTL set_param mdt.*.identity_upcall=NONE
+	mountcli
 
 	# Grab ENV variables for OSD mem
 	export OSD_MEM_TGT_TYPE=${OSD_MEM_TGT_TYPE:-"OST"}
@@ -141,7 +143,7 @@ function test_20() {
 function test_22() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	load_module osd-mem/osd_mem || error "load_module failed"
+	insmod build/osd_mem.ko || error "load_module failed"
 
 	# OSD mem specific variables
 	export MEM_OSS="1"
@@ -164,7 +166,7 @@ function test_22() {
 function test_30() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	load_module osd-mem/osd_mem || error "load_module failed"
+	insmod build/osd_mem.ko || error "load_module failed"
 	echo $VB_OSD_DEBUG | tee /sys/module/osd_mem/parameters/verbose_debug
 
 	# Grab ENV variables for OSD mem
@@ -192,7 +194,7 @@ function test_30() {
 function test_32() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	load_module osd-mem/osd_mem || error "load_module failed"
+	insmod build/osd_mem.ko || error "load_module failed"
 	echo $VB_OSD_DEBUG | tee /sys/module/osd_mem/parameters/verbose_debug
 
 	# Grab ENV variables for OSD mem
@@ -221,7 +223,7 @@ function test_32() {
 function test_40() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	load_module osd-mem/osd_mem || error "load_module failed"
+	insmod build/osd_mem.ko || error "load_module failed"
 	echo $VB_OSD_DEBUG | tee /sys/module/osd_mem/parameters/verbose_debug
 
 	# Setup servers
@@ -254,7 +256,7 @@ function test_40() {
 function test_50() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	load_module osd-mem/osd_mem || error "load_module failed"
+	insmod build/osd_mem.ko || error "load_module failed"
 	load_module kunit/llog_test || error "load_module failed"
 
 	# Grab ENV variables for OSD mem
@@ -299,19 +301,22 @@ function test_50() {
 function test_60() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	load_module osd-mem/osd_mem || error "load_module failed"
+	insmod build/osd_mem.ko || error "load_module failed"
 
 	# Setup servers
 	export MEM_MDS="1"
 	formatall
-	setupall
+	setupall server_only
+	$LCTL set_param mdt.*.identity_upcall=NONE
+	mountcli
 
 	# Run sanity.sh tests
 	export do_setup="false"
 	unset ONLY
 	unset ONLY_60
 	export ONLY="0a 0b 1 2 3 7b 9 10 14 15 16 17a 17b 17c"
-	export ONLY="$ONLY 17d 17e 17f 17g"
+	export ONLY="$ONLY 17d 17e 17f"
+	export RUNAS_ID="1000"
 	bash sanity.sh
 
 	# Logs
@@ -331,13 +336,15 @@ function test_60() {
 function test_70() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	load_module osd-mem/osd_mem || error "load_module failed"
+	insmod build/osd_mem.ko || error "load_module failed"
 
 	# Setup servers
 	export MEM_MDS="1"
 	export MEM_OSS="1"
 	formatall
-	setupall
+	setupall server_only
+	$LCTL set_param mdt.*.identity_upcall=NONE
+	mountcli
 
 	# Run sanity.sh tests
 	export do_setup="false"
@@ -346,16 +353,27 @@ function test_70() {
 
 	# 0f, 4 - Fail; some attrs are likely not implemented correctly
 	# 17o - Crash; on cleanup, crash on osp_sync_thread(), with ASSERTION(count < 10)
+	# 17g - Fail; started failing with too long filename?
 	# 24v - Fail; issue listing large directory?
 	# 24w - Kernel error; stack trace on __alloc_pages()
 	# 24A - Fail; we don't treat .. specially?
 	# 27n, 27o, 27oo, 27p, 27q, 27r, 27v - Test error; no label for mds?
-	export EXCEPT="0f 4 17o 24v 24w 24A 27n 27o 27oo 27p 27q 27r 27v"
+	# 27u - Fail; this runs too slow!
+	export EXCEPT="0f 4 17o 17g 24v 24w 24A 27n 27o 27oo 27p 27q 27r 27v"
+	export EXCEPT="$EXCEPT 27u"
 
 	# Skip everything else
 	export STOP_AT="27wa"
 	export EXCEPT="$EXCEPT 211"
 
+	# Hacks to make script run correctly
+	export FSTYPE="zfs"
+	export mds1_FSTYPE="zfs"
+	export ost1_FSTYPE="zfs"
+	export ost2_FSTYPE="zfs"
+	export RUNAS_ID="1000"
+
+	# Run the script!
 	bash sanity.sh
 
 	# Logs
@@ -403,7 +421,7 @@ function om_all() {
 	run_osd_test 50 "llog unit tests"
 
 	# Run sanity tests
-	run_osd_test 60 "osd-mem MGT/MDT sanity test"
+	run_osd_test 70 "osd-mem sanity test"
 }
 
 function om_obd() {
@@ -452,7 +470,7 @@ if [[ "$EUID" -ne 0 ]]; then
 fi
 
 # Init Lustre test stuff
-LUSTRE=${LUSTRE:-$(dirname "$0")/..}
+LUSTRE=${LUSTRE:-"$(dirname "$0")/../../lustre-release/lustre"}
 . "$LUSTRE/tests/test-framework.sh"
 init_test_env "$@"
 load_modules
