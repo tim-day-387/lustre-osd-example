@@ -1,18 +1,16 @@
-From b0ab217677b10ce43a1506f8e1752c48a261c0d3 Mon Sep 17 00:00:00 2001
+From 4ac26725edd7c849440d4a30ef710ec01ecdb79b Mon Sep 17 00:00:00 2001
 From: Timothy Day <tday141@gmail.com>
-Date: Sun, 14 Apr 2024 19:00:32 -0400
-Subject: [PATCH] osd-mem: in-memory OSD device
+Date: Sun, 5 May 2024 01:20:34 -0400
+Subject: [PATCH] osd-mem: in-memory OSD
 
 Wiring for out-of-tree OSD.
 
 Signed-off-by: Timothy Day <tday141@gmail.com>
 ---
  config/lustre-build.m4                        |   2 +-
- lustre/include/dt_object.h                    |  86 ++++++--
  lustre/include/lu_object.h                    |   9 +
  lustre/include/obd.h                          |   1 +
  .../include/uapi/linux/lustre/lustre_disk.h   |   1 +
- lustre/mdt/mdt_handler.c                      |   4 +-
  lustre/mgs/lproc_mgs.c                        |   7 +-
  lustre/obdclass/lu_object.c                   |  31 +++
  lustre/osp/osp_sync.c                         |  27 ++-
@@ -22,7 +20,7 @@ Signed-off-by: Timothy Day <tday141@gmail.com>
  lustre/utils/mkfs_lustre.c                    |   4 -
  lustre/utils/mount_lustre.c                   |  15 ++
  lustre/utils/mount_utils.h                    |   3 +
- 15 files changed, 433 insertions(+), 47 deletions(-)
+ 13 files changed, 364 insertions(+), 26 deletions(-)
  create mode 100644 lustre/utils/libmount_utils_mem.c
 
 diff --git a/config/lustre-build.m4 b/config/lustre-build.m4
@@ -38,268 +36,6 @@ index 9e56a96973..16668ece73 100644
  	], [
  		AS_IF([test x$enable_server = xmaybe], [enable_server=yes])
  	])
-diff --git a/lustre/include/dt_object.h b/lustre/include/dt_object.h
-index 20f61cab8f..8c0e25d013 100644
---- a/lustre/include/dt_object.h
-+++ b/lustre/include/dt_object.h
-@@ -2206,7 +2206,10 @@ static inline int dt_object_sync(const struct lu_env *env, struct dt_object *o,
- {
- 	LASSERT(o);
- 	LASSERT(o->do_ops);
--	LASSERT(o->do_ops->do_object_sync);
-+
-+	if (unlikely(!o->do_ops->do_object_sync))
-+		return 0;
-+
- 	return o->do_ops->do_object_sync(env, o, start, end);
- }
- 
-@@ -2309,8 +2312,12 @@ static inline int dt_declare_record_write(const struct lu_env *env,
- 	LASSERT(th != NULL);
- 	LASSERTF(dt->do_body_ops, DFID" doesn't exit\n",
- 		 PFID(lu_object_fid(&dt->do_lu)));
--	LASSERT(dt->do_body_ops->dbo_declare_write);
-+
-+	if (unlikely(!dt->do_body_ops->dbo_declare_write))
-+		return 0;
-+
- 	rc = dt->do_body_ops->dbo_declare_write(env, dt, buf, pos, th);
-+
- 	return rc;
- }
- 
-@@ -2323,11 +2330,13 @@ static inline int dt_declare_create(const struct lu_env *env,
- {
- 	LASSERT(dt);
- 	LASSERT(dt->do_ops);
--	LASSERT(dt->do_ops->do_declare_create);
- 
- 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_CREATE))
- 		return cfs_fail_err;
- 
-+	if (unlikely(!dt->do_ops->do_declare_create))
-+		return 0;
-+
- 	return dt->do_ops->do_declare_create(env, dt, attr, hint, dof, th);
- }
- 
-@@ -2354,11 +2363,13 @@ static inline int dt_declare_destroy(const struct lu_env *env,
- {
- 	LASSERT(dt);
- 	LASSERT(dt->do_ops);
--	LASSERT(dt->do_ops->do_declare_destroy);
- 
- 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_DESTROY))
- 		return cfs_fail_err;
- 
-+	if (unlikely(!dt->do_ops->do_declare_destroy))
-+		return 0;
-+
- 	return dt->do_ops->do_declare_destroy(env, dt, th);
- }
- 
-@@ -2427,7 +2438,9 @@ static inline bool dt_object_stale(struct dt_object *dt)
- {
- 	LASSERT(dt);
- 	LASSERT(dt->do_ops);
--	LASSERT(dt->do_ops->do_check_stale);
-+
-+	if (unlikely(!dt->do_ops->do_check_stale))
-+		return false;
- 
- 	return dt->do_ops->do_check_stale(dt);
- }
-@@ -2465,11 +2478,13 @@ static inline int dt_declare_attr_set(const struct lu_env *env,
- {
- 	LASSERT(dt);
- 	LASSERT(dt->do_ops);
--	LASSERT(dt->do_ops->do_declare_attr_set);
- 
- 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_ATTR_SET))
- 		return cfs_fail_err;
- 
-+	if (unlikely(!dt->do_ops->do_declare_attr_set))
-+		return 0;
-+
- 	return dt->do_ops->do_declare_attr_set(env, dt, la, th);
- }
- 
-@@ -2491,11 +2506,13 @@ static inline int dt_declare_ref_add(const struct lu_env *env,
- {
- 	LASSERT(dt);
- 	LASSERT(dt->do_ops);
--	LASSERT(dt->do_ops->do_declare_ref_add);
- 
- 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_REF_ADD))
- 		return cfs_fail_err;
- 
-+	if (unlikely(!dt->do_ops->do_declare_ref_add))
-+		return 0;
-+
- 	return dt->do_ops->do_declare_ref_add(env, dt, th);
- }
- 
-@@ -2517,11 +2534,13 @@ static inline int dt_declare_ref_del(const struct lu_env *env,
- {
- 	LASSERT(dt);
- 	LASSERT(dt->do_ops);
--	LASSERT(dt->do_ops->do_declare_ref_del);
- 
- 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_REF_DEL))
- 		return cfs_fail_err;
- 
-+	if (unlikely(!dt->do_ops->do_declare_ref_del))
-+		return 0;
-+
- 	return dt->do_ops->do_declare_ref_del(env, dt, th);
- }
- 
-@@ -2575,6 +2594,10 @@ static inline int dt_declare_write_commit(const struct lu_env *env,
- {
- 	LASSERTF(d != NULL, "dt is NULL when we want to declare write\n");
- 	LASSERT(th != NULL);
-+
-+	if (unlikely(!d->do_body_ops->dbo_declare_write_commit))
-+		return 0;
-+
- 	return d->do_body_ops->dbo_declare_write_commit(env, d, lnb, n, th);
- }
- 
-@@ -2605,7 +2628,10 @@ static inline int dt_declare_write(const struct lu_env *env,
- {
- 	LASSERT(dt);
- 	LASSERT(dt->do_body_ops);
--	LASSERT(dt->do_body_ops->dbo_declare_write);
-+
-+	if (unlikely(!dt->do_body_ops->dbo_declare_write))
-+		return 0;
-+
- 	return dt->do_body_ops->dbo_declare_write(env, dt, buf, pos, th);
- }
- 
-@@ -2625,7 +2651,10 @@ static inline int dt_declare_punch(const struct lu_env *env,
- {
- 	LASSERT(dt);
- 	LASSERT(dt->do_body_ops);
--	LASSERT(dt->do_body_ops->dbo_declare_punch);
-+
-+	if (unlikely(!dt->do_body_ops->dbo_declare_punch))
-+		return 0;
-+
- 	return dt->do_body_ops->dbo_declare_punch(env, dt, start, end, th);
- }
- 
-@@ -2652,10 +2681,13 @@ static inline int dt_declare_fallocate(const struct lu_env *env,
- 				       __u64 end, int mode, struct thandle *th)
- {
- 	LASSERT(dt);
-+
- 	if (!dt->do_body_ops)
- 		return -EOPNOTSUPP;
--	LASSERT(dt->do_body_ops);
--	LASSERT(dt->do_body_ops->dbo_declare_fallocate);
-+
-+	if (unlikely(!dt->do_body_ops->dbo_declare_fallocate))
-+		return 0;
-+
- 	return dt->do_body_ops->dbo_declare_fallocate(env, dt, start, end,
- 						      mode, th);
- }
-@@ -2744,7 +2776,10 @@ static inline int dt_sync(const struct lu_env *env, struct dt_device *dev)
- {
- 	LASSERT(dev);
- 	LASSERT(dev->dd_ops);
--	LASSERT(dev->dd_ops->dt_sync);
-+
-+	if (unlikely(!dev->dd_ops->dt_sync))
-+		return 0;
-+
- 	return dev->dd_ops->dt_sync(env, dev);
- }
- 
-@@ -2764,11 +2799,13 @@ static inline int dt_declare_insert(const struct lu_env *env,
- {
- 	LASSERT(dt);
- 	LASSERT(dt->do_index_ops);
--	LASSERT(dt->do_index_ops->dio_declare_insert);
- 
- 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_INSERT))
- 		return cfs_fail_err;
- 
-+	if (unlikely(!dt->do_index_ops->dio_declare_insert))
-+		return 0;
-+
- 	return dt->do_index_ops->dio_declare_insert(env, dt, rec, key, th);
- }
- 
-@@ -2795,11 +2832,13 @@ static inline int dt_declare_xattr_del(const struct lu_env *env,
- {
- 	LASSERT(dt);
- 	LASSERT(dt->do_ops);
--	LASSERT(dt->do_ops->do_declare_xattr_del);
- 
- 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_XATTR_DEL))
- 		return cfs_fail_err;
- 
-+	if (unlikely(!dt->do_ops->do_declare_xattr_del))
-+		return 0;
-+
- 	return dt->do_ops->do_declare_xattr_del(env, dt, name, th);
- }
- 
-@@ -2825,11 +2864,13 @@ static inline int dt_declare_xattr_set(const struct lu_env *env,
- {
- 	LASSERT(dt);
- 	LASSERT(dt->do_ops);
--	LASSERT(dt->do_ops->do_declare_xattr_set);
- 
- 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_XATTR_SET))
- 		return cfs_fail_err;
- 
-+	if (unlikely(!dt->do_ops->do_declare_xattr_set))
-+		return 0;
-+
- 	return dt->do_ops->do_declare_xattr_set(env, dt, buf, name, fl, th);
- }
- 
-@@ -2893,7 +2934,9 @@ static inline int dt_invalidate(const struct lu_env *env, struct dt_object *dt)
- {
- 	LASSERT(dt);
- 	LASSERT(dt->do_ops);
--	LASSERT(dt->do_ops->do_invalidate);
-+
-+	if (unlikely(!dt->do_ops->do_invalidate))
-+		return 0;
- 
- 	return dt->do_ops->do_invalidate(env, dt);
- }
-@@ -2905,11 +2948,13 @@ static inline int dt_declare_delete(const struct lu_env *env,
- {
- 	LASSERT(dt);
- 	LASSERT(dt->do_index_ops);
--	LASSERT(dt->do_index_ops->dio_declare_delete);
- 
- 	if (CFS_FAULT_CHECK(OBD_FAIL_DT_DECLARE_DELETE))
- 		return cfs_fail_err;
- 
-+	if (unlikely(!dt->do_index_ops->dio_declare_delete))
-+		return 0;
-+
- 	return dt->do_index_ops->dio_declare_delete(env, dt, key, th);
- }
- 
-@@ -2933,7 +2978,10 @@ static inline int dt_commit_async(const struct lu_env *env,
- {
- 	LASSERT(dev);
- 	LASSERT(dev->dd_ops);
--	LASSERT(dev->dd_ops->dt_commit_async);
-+
-+	if (unlikely(!dev->dd_ops->dt_commit_async))
-+		return 0;
-+
- 	return dev->dd_ops->dt_commit_async(env, dev);
- }
- 
 diff --git a/lustre/include/lu_object.h b/lustre/include/lu_object.h
 index 421ee93d31..e413612119 100644
 --- a/lustre/include/lu_object.h
@@ -344,28 +80,6 @@ index eae43efe97..d5575ec66f 100644
  	LDD_MT_LAST
  };
  
-diff --git a/lustre/mdt/mdt_handler.c b/lustre/mdt/mdt_handler.c
-index 7a8e853e40..fb39ced213 100644
---- a/lustre/mdt/mdt_handler.c
-+++ b/lustre/mdt/mdt_handler.c
-@@ -3192,7 +3192,7 @@ int mdt_device_sync(const struct lu_env *env, struct mdt_device *mdt)
- 
- 	ENTRY;
- 
--	rc = dt->dd_ops->dt_sync(env, dt);
-+	rc = dt_sync(env, dt);
- 	RETURN(rc);
- }
- 
-@@ -3605,7 +3605,7 @@ static void mdt_device_commit_async(const struct lu_env *env,
- 
- 	ENTRY;
- 
--	rc = dt->dd_ops->dt_commit_async(env, dt);
-+	rc = dt_commit_async(env, dt);
- 	if (unlikely(rc != 0))
- 		CWARN("%s: async commit start failed: rc = %d\n",
- 		      mdt_obd_name(mdt), rc);
 diff --git a/lustre/mgs/lproc_mgs.c b/lustre/mgs/lproc_mgs.c
 index 082fb03220..573700cb8e 100644
 --- a/lustre/mgs/lproc_mgs.c
@@ -469,10 +183,10 @@ index be0f901575..b68589cda2 100644
  	lu_env_fini(env);
  
 diff --git a/lustre/tests/test-framework.sh b/lustre/tests/test-framework.sh
-index 120f5a1934..f931279d25 100755
+index aac78eeed5..ae0745de08 100755
 --- a/lustre/tests/test-framework.sh
 +++ b/lustre/tests/test-framework.sh
-@@ -1056,6 +1056,15 @@ load_modules_local() {
+@@ -1075,6 +1075,15 @@ load_modules_local() {
  			load_module ../ldiskfs/ldiskfs
  			load_module osd-ldiskfs/osd_ldiskfs
  		fi
@@ -488,7 +202,7 @@ index 120f5a1934..f931279d25 100755
  		load_module mgs/mgs
  		load_module mdd/mdd
  		load_module mdt/mdt
-@@ -2403,6 +2412,17 @@ mount_facet() {
+@@ -2422,6 +2431,17 @@ mount_facet() {
  	local mntpt=$(facet_mntpt $facet)
  	local opts="${!opt} $@"
  	local fstype=$(facet_fstype $facet)
@@ -506,7 +220,7 @@ index 120f5a1934..f931279d25 100755
  	local devicelabel
  	local dm_dev=${!dev}
  
-@@ -2427,21 +2447,48 @@ mount_facet() {
+@@ -2446,21 +2466,48 @@ mount_facet() {
  
  		devicelabel=$(do_facet ${facet} "$ZFS get -H -o value \
  						lustre:svname $dm_dev");;
@@ -559,7 +273,7 @@ index 120f5a1934..f931279d25 100755
  			do_facet ${facet} "$LCTL set_param \
  				seq.cli-$(devicelabel $facet $dm_dev)-super.width=$seq_width"
  		fi
-@@ -2474,6 +2521,8 @@ mount_facet() {
+@@ -2493,6 +2540,8 @@ mount_facet() {
  				grep -E ':[a-zA-Z]{3}[0-9]{4}'" "" ||
  				error "$dm_dev failed to initialize!";;
  
@@ -568,7 +282,7 @@ index 120f5a1934..f931279d25 100755
  		*)
  			error "unknown fstype!";;
  		esac
-@@ -2485,13 +2534,14 @@ mount_facet() {
+@@ -2504,13 +2553,14 @@ mount_facet() {
  		do_facet $facet "sync; sleep 1; sync"
  	fi
  
@@ -589,7 +303,7 @@ index 120f5a1934..f931279d25 100755
  
  	return $RC
  }
-@@ -5394,6 +5444,9 @@ formatall() {
+@@ -5413,6 +5463,9 @@ formatall() {
  
  	export OST_INDICES=($(hostlist_expand "$OST_INDEX_LIST"))
  	check_ost_indices
@@ -897,5 +611,5 @@ index c51cf1f6a5..791e1f171b 100644
  	return mount_type_string[mt];
  }
 -- 
-2.27.0
+2.25.1
 

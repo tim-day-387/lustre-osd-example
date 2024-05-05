@@ -91,6 +91,17 @@ static void osd_object_free(const struct lu_env *env, struct lu_object *l)
 	EXIT;
 }
 
+/*
+ * TODO: We have no need to declare transactions ahead of time.
+ * Instead, leave this as a stub function - omitting it induces
+ * a crash.
+ */
+static int osd_declare_destroy(const struct lu_env *env, struct dt_object *dt,
+			       struct thandle *th)
+{
+	NOT_IMPLEMENTED(0);
+}
+
 static int osd_destroy(const struct lu_env *env, struct dt_object *dt,
 		       struct thandle *th)
 {
@@ -199,6 +210,19 @@ static int osd_attr_get(const struct lu_env *env, struct dt_object *dt,
 	RETURN(0);
 }
 
+/*
+ * TODO: We have no need to declare transactions ahead of time.
+ * Instead, leave this as a stub function - omitting it induces
+ * a crash.
+ */
+static int osd_declare_attr_set(const struct lu_env *env,
+				struct dt_object *dt,
+				const struct lu_attr *attr,
+				struct thandle *handle)
+{
+	NOT_IMPLEMENTED(0);
+}
+
 static int osd_attr_set(const struct lu_env *env, struct dt_object *dt,
 			const struct lu_attr *la, struct thandle *th)
 {
@@ -288,6 +312,20 @@ static void osd_ah_init(const struct lu_env *env, struct dt_allocation_hint *ah,
 	EXIT;
 }
 
+/*
+ * TODO: We have no need to declare transactions ahead of time.
+ * Instead, leave this as a stub function - omitting it induces
+ * a crash.
+ */
+static int osd_declare_create(const struct lu_env *env, struct dt_object *dt,
+			      struct lu_attr *attr,
+			      struct dt_allocation_hint *hint,
+			      struct dt_object_format *dof,
+			      struct thandle *handle)
+{
+	NOT_IMPLEMENTED(0);
+}
+
 static int osd_create(const struct lu_env *env, struct dt_object *dt,
 		      struct lu_attr *attr, struct dt_allocation_hint *hint,
 		      struct dt_object_format *dof, struct thandle *th)
@@ -332,12 +370,34 @@ static int osd_create(const struct lu_env *env, struct dt_object *dt,
 	RETURN_TH(th, 0);
 }
 
+/*
+ * TODO: We have no need to declare transactions ahead of time.
+ * Instead, leave this as a stub function - omitting it induces
+ * a crash.
+ */
+static int osd_declare_ref_add(const struct lu_env *env, struct dt_object *dt,
+			       struct thandle *th)
+{
+	NOT_IMPLEMENTED(0);
+}
+
 static int osd_ref_add(const struct lu_env *env, struct dt_object *dt,
 		       struct thandle *th)
 {
 	ENTRY_TH(th);
 	OSD_TRACE(dt);
 	RETURN_TH(th, 0);
+}
+
+/*
+ * TODO: We have no need to declare transactions ahead of time.
+ * Instead, leave this as a stub function - omitting it induces
+ * a crash.
+ */
+static int osd_declare_ref_del(const struct lu_env *env, struct dt_object *dt,
+			       struct thandle *handle)
+{
+	NOT_IMPLEMENTED(0);
 }
 
 static int osd_ref_del(const struct lu_env *env, struct dt_object *dt,
@@ -379,6 +439,18 @@ static int osd_xattr_get(const struct lu_env *env, struct dt_object *dt,
 	}
 
 	RETURN(-ENODATA);
+}
+
+/*
+ * TODO: We have no need to declare transactions ahead of time.
+ * Instead, leave this as a stub function - omitting it induces
+ * a crash.
+ */
+static int osd_declare_xattr_set(const struct lu_env *env, struct dt_object *dt,
+				 const struct lu_buf *buf, const char *name,
+				 int fl, struct thandle *handle)
+{
+	NOT_IMPLEMENTED(0);
 }
 
 static int osd_xattr_set(const struct lu_env *env, struct dt_object *dt,
@@ -436,6 +508,17 @@ out_free_entry:
 	RETURN_TH(th, rc);
 }
 
+/*
+ * TODO: We have no need to declare transactions ahead of time.
+ * Instead, leave this as a stub function - omitting it induces
+ * a crash.
+ */
+static int osd_declare_xattr_del(const struct lu_env *env, struct dt_object *dt,
+				 const char *name, struct thandle *handle)
+{
+	NOT_IMPLEMENTED(0);
+}
+
 static int osd_xattr_del(const struct lu_env *env, struct dt_object *dt,
 			 const char *name, struct thandle *th)
 {
@@ -452,6 +535,26 @@ static int osd_xattr_list(const struct lu_env *env, struct dt_object *dt,
 	RETURN(0);
 }
 
+static int osd_object_sync(const struct lu_env *env, struct dt_object *dt,
+			   __u64 start, __u64 end)
+{
+	NOT_IMPLEMENTED(0);
+}
+
+static int osd_invalidate(const struct lu_env *env, struct dt_object *dt)
+{
+	NOT_IMPLEMENTED(0);
+}
+
+/*
+ * TODO: This appears to return false for every OSD implementation
+ * I've seen. This can likely be removed altogether.
+ */
+static bool osd_check_stale(struct dt_object *dt)
+{
+	return false;
+}
+
 const struct dt_object_operations osd_obj_ops = {
 	.do_read_lock		= osd_read_lock,
 	.do_write_lock		= osd_write_lock,
@@ -459,17 +562,27 @@ const struct dt_object_operations osd_obj_ops = {
 	.do_write_unlock	= osd_write_unlock,
 	.do_write_locked	= osd_write_locked,
 	.do_attr_get		= osd_attr_get,
+	.do_declare_attr_set	= osd_declare_attr_set,
 	.do_attr_set		= osd_attr_set,
 	.do_ah_init		= osd_ah_init,
+	.do_declare_create	= osd_declare_create,
 	.do_create		= osd_create,
+	.do_declare_destroy	= osd_declare_destroy,
 	.do_destroy		= osd_destroy,
 	.do_index_try		= osd_index_try,
+	.do_declare_ref_add	= osd_declare_ref_add,
 	.do_ref_add		= osd_ref_add,
+	.do_declare_ref_del	= osd_declare_ref_del,
 	.do_ref_del		= osd_ref_del,
 	.do_xattr_get		= osd_xattr_get,
+	.do_declare_xattr_set	= osd_declare_xattr_set,
 	.do_xattr_set		= osd_xattr_set,
+	.do_declare_xattr_del	= osd_declare_xattr_del,
 	.do_xattr_del		= osd_xattr_del,
 	.do_xattr_list		= osd_xattr_list,
+	.do_object_sync		= osd_object_sync,
+	.do_invalidate		= osd_invalidate,
+	.do_check_stale		= osd_check_stale,
 };
 
 const struct lu_object_operations osd_lu_obj_ops = {

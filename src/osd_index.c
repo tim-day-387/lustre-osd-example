@@ -40,6 +40,20 @@ static int osd_index_lookup(const struct lu_env *env, struct dt_object *dt,
 	RETURN(0);
 }
 
+/*
+ * TODO: We have no need to declare transactions ahead of time.
+ * Instead, leave this as a stub function - omitting it induces
+ * a crash.
+ */
+static int osd_declare_index_insert(const struct lu_env *env,
+				    struct dt_object *dt,
+				    const struct dt_rec *rec,
+				    const struct dt_key *key,
+				    struct thandle *th)
+{
+	NOT_IMPLEMENTED(0);
+}
+
 static int osd_index_insert(const struct lu_env *env, struct dt_object *dt,
 			    const struct dt_rec *rec, const struct dt_key *key,
 			    struct thandle *th)
@@ -80,6 +94,19 @@ out_free_entry:
 
 	OSD_TRACE(dt);
 	RETURN_TH(th, rc);
+}
+
+/*
+ * TODO: We have no need to declare transactions ahead of time.
+ * Instead, leave this as a stub function - omitting it induces
+ * a crash.
+ */
+static int osd_declare_index_delete(const struct lu_env *env,
+				    struct dt_object *dt,
+				    const struct dt_key *key,
+				    struct thandle *th)
+{
+	NOT_IMPLEMENTED(0);
 }
 
 static int osd_index_delete(const struct lu_env *env, struct dt_object *dt,
@@ -257,7 +284,9 @@ static int osd_index_it_load(const struct lu_env *env, const struct dt_it *di,
 
 const struct dt_index_operations osd_index_ops = {
 	.dio_lookup		= osd_index_lookup,
+	.dio_declare_insert	= osd_declare_index_insert,
 	.dio_insert		= osd_index_insert,
+	.dio_declare_delete	= osd_declare_index_delete,
 	.dio_delete		= osd_index_delete,
 	.dio_it	= {
 		.init		= osd_index_it_init,
@@ -615,7 +644,9 @@ static int osd_dir_it_load(const struct lu_env *env, const struct dt_it *di,
 
 const struct dt_index_operations osd_dir_ops = {
 	.dio_lookup         = osd_dir_lookup,
+	.dio_declare_insert = osd_declare_index_insert,
 	.dio_insert         = osd_dir_insert,
+	.dio_declare_delete = osd_declare_index_delete,
 	.dio_delete         = osd_dir_delete,
 	.dio_it     = {
 		.init     = osd_index_it_init,

@@ -56,6 +56,18 @@ static ssize_t osd_read(const struct lu_env *env, struct dt_object *dt,
 	RETURN(size);
 }
 
+/*
+ * TODO: We have no need to declare transactions ahead of time.
+ * Instead, leave this as a stub function - omitting it induces
+ * a crash.
+ */
+static ssize_t osd_declare_write(const struct lu_env *env, struct dt_object *dt,
+				 const struct lu_buf *buf, loff_t pos,
+				 struct thandle *th)
+{
+	NOT_IMPLEMENTED(0);
+}
+
 static ssize_t osd_write(const struct lu_env *env, struct dt_object *dt,
 			 const struct lu_buf *sbuf, loff_t *pos,
 			 struct thandle *th)
@@ -234,6 +246,19 @@ static int osd_write_prep(const struct lu_env *env, struct dt_object *dt,
 	RETURN(0);
 }
 
+/*
+ * TODO: We have no need to declare transactions ahead of time.
+ * Instead, leave this as a stub function - omitting it induces
+ * a crash.
+ */
+static int osd_declare_write_commit(const struct lu_env *env,
+				    struct dt_object *dt,
+				    struct niobuf_local *lnb, int npages,
+				    struct thandle *th)
+{
+	NOT_IMPLEMENTED(0);
+}
+
 static int osd_write_commit(const struct lu_env *env, struct dt_object *dt,
 			    struct niobuf_local *lnb, int npages,
 			    struct thandle *th, __u64 user_size)
@@ -288,6 +313,17 @@ static int osd_write_commit(const struct lu_env *env, struct dt_object *dt,
 	RETURN_TH(th, 0);
 }
 
+/*
+ * TODO: We have no need to declare transactions ahead of time.
+ * Instead, leave this as a stub function - omitting it induces
+ * a crash.
+ */
+static int osd_declare_punch(const struct lu_env *env, struct dt_object *dt,
+			     __u64 start, __u64 end, struct thandle *handle)
+{
+	NOT_IMPLEMENTED(0);
+}
+
 static int osd_punch(const struct lu_env *env, struct dt_object *dt,
 		     __u64 start, __u64 end, struct thandle *th)
 {
@@ -302,6 +338,18 @@ static int osd_ladvise(const struct lu_env *env, struct dt_object *dt,
 	ENTRY;
 	OSD_TRACE(dt);
 	RETURN(0);
+}
+
+/*
+ * TODO: We have no need to declare transactions ahead of time.
+ * Instead, leave this as a stub function - omitting it induces
+ * a crash.
+ */
+static int osd_declare_fallocate(const struct lu_env *env,
+				 struct dt_object *dt, __u64 start, __u64 end,
+				 int mode, struct thandle *th)
+{
+	NOT_IMPLEMENTED(0);
 }
 
 static int osd_fallocate(const struct lu_env *env, struct dt_object *dt,
@@ -322,14 +370,18 @@ static loff_t osd_lseek(const struct lu_env *env, struct dt_object *dt,
 
 const struct dt_body_operations osd_body_ops = {
 	.dbo_read			= osd_read,
+	.dbo_declare_write		= osd_declare_write,
 	.dbo_write			= osd_write,
 	.dbo_bufs_get			= osd_bufs_get,
 	.dbo_bufs_put			= osd_bufs_put,
 	.dbo_write_prep			= osd_write_prep,
+	.dbo_declare_write_commit	= osd_declare_write_commit,
 	.dbo_write_commit		= osd_write_commit,
 	.dbo_read_prep			= osd_read_prep,
+	.dbo_declare_punch		= osd_declare_punch,
 	.dbo_punch			= osd_punch,
 	.dbo_ladvise			= osd_ladvise,
+	.dbo_declare_fallocate		= osd_declare_fallocate,
 	.dbo_fallocate			= osd_fallocate,
 	.dbo_lseek			= osd_lseek,
 };

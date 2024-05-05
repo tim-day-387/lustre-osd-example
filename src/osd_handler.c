@@ -191,6 +191,24 @@ static int osd_reserve_or_free_quota(const struct lu_env *env,
 	NOT_IMPLEMENTED(0);
 }
 
+/*
+ * We write everything to physical memory, therefore we have nothing
+ * to sync.
+ */
+static int osd_sync(const struct lu_env *env, struct dt_device *d)
+{
+	NOT_IMPLEMENTED(0);
+}
+
+/*
+ * We write everything to physical memory, therefore we have nothing
+ * to sync.
+ */
+static int osd_commit_async(const struct lu_env *env, struct dt_device *dev)
+{
+	NOT_IMPLEMENTED(0);
+}
+
 const struct dt_device_operations osd_dt_ops = {
 	.dt_root_get		  = osd_root_get,
 	.dt_statfs		  = osd_statfs,
@@ -201,6 +219,8 @@ const struct dt_device_operations osd_dt_ops = {
 	.dt_conf_get		  = osd_conf_get,
 	.dt_ro			  = osd_ro,
 	.dt_reserve_or_free_quota = osd_reserve_or_free_quota,
+	.dt_sync		  = osd_sync,
+	.dt_commit_async	  = osd_commit_async,
 };
 
 static int osd_mount(const struct lu_env *env, struct osd_device *osd,
