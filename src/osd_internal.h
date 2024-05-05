@@ -278,6 +278,15 @@ int osd_buf_read(struct osd_buf *src, void *dst, size_t len,
 		 loff_t off);
 int osd_buf_write(struct osd_buf *dst, void *src, size_t len,
 		  loff_t off);
+int lu_buf_cpy_ptr(struct lu_buf *dst, void *src, size_t len,
+		   loff_t off);
+
+static inline int lu_buf_cpy(struct lu_buf *dst,
+			     const struct lu_buf *src,
+			     loff_t off)
+{
+	return lu_buf_cpy_ptr(dst, src->lb_buf, src->lb_len, off);
+}
 
 /*
  * Custom Lustre debugging macros

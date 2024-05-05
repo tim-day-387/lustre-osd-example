@@ -1,4 +1,4 @@
-From 4ac26725edd7c849440d4a30ef710ec01ecdb79b Mon Sep 17 00:00:00 2001
+From 0a1c985351da9d93e30079387b260f9b3784e4d5 Mon Sep 17 00:00:00 2001
 From: Timothy Day <tday141@gmail.com>
 Date: Sun, 5 May 2024 01:20:34 -0400
 Subject: [PATCH] osd-mem: in-memory OSD
@@ -8,11 +8,9 @@ Wiring for out-of-tree OSD.
 Signed-off-by: Timothy Day <tday141@gmail.com>
 ---
  config/lustre-build.m4                        |   2 +-
- lustre/include/lu_object.h                    |   9 +
  lustre/include/obd.h                          |   1 +
  .../include/uapi/linux/lustre/lustre_disk.h   |   1 +
  lustre/mgs/lproc_mgs.c                        |   7 +-
- lustre/obdclass/lu_object.c                   |  31 +++
  lustre/osp/osp_sync.c                         |  27 ++-
  lustre/tests/test-framework.sh                |  73 ++++++-
  lustre/utils/Makefile.am                      |  16 ++
@@ -20,7 +18,7 @@ Signed-off-by: Timothy Day <tday141@gmail.com>
  lustre/utils/mkfs_lustre.c                    |   4 -
  lustre/utils/mount_lustre.c                   |  15 ++
  lustre/utils/mount_utils.h                    |   3 +
- 13 files changed, 364 insertions(+), 26 deletions(-)
+ 11 files changed, 324 insertions(+), 26 deletions(-)
  create mode 100644 lustre/utils/libmount_utils_mem.c
 
 diff --git a/config/lustre-build.m4 b/config/lustre-build.m4
@@ -36,26 +34,6 @@ index 9e56a96973..16668ece73 100644
  	], [
  		AS_IF([test x$enable_server = xmaybe], [enable_server=yes])
  	])
-diff --git a/lustre/include/lu_object.h b/lustre/include/lu_object.h
-index 421ee93d31..e413612119 100644
---- a/lustre/include/lu_object.h
-+++ b/lustre/include/lu_object.h
-@@ -1559,6 +1559,15 @@ void lu_buf_realloc(struct lu_buf *buf, size_t size);
- 
- int lu_buf_check_and_grow(struct lu_buf *buf, size_t len);
- struct lu_buf *lu_buf_check_and_alloc(struct lu_buf *buf, size_t len);
-+int lu_buf_cpy_ptr(struct lu_buf *dst, void *src, size_t len,
-+		   loff_t off);
-+
-+static inline int lu_buf_cpy(struct lu_buf *dst,
-+			     const struct lu_buf *src,
-+			     loff_t off)
-+{
-+	return lu_buf_cpy_ptr(dst, src->lb_buf, src->lb_len, off);
-+}
- 
- extern __u32 lu_context_tags_default;
- extern __u32 lu_session_tags_default;
 diff --git a/lustre/include/obd.h b/lustre/include/obd.h
 index 62baa2a657..6261830d22 100644
 --- a/lustre/include/obd.h
@@ -98,45 +76,6 @@ index 082fb03220..573700cb8e 100644
  	}
  
  	bottom_type = get_ktype(&mgs->mgs_bottom->dd_kobj);
-diff --git a/lustre/obdclass/lu_object.c b/lustre/obdclass/lu_object.c
-index cd98acbca0..2ad4037177 100644
---- a/lustre/obdclass/lu_object.c
-+++ b/lustre/obdclass/lu_object.c
-@@ -2469,3 +2469,34 @@ int lu_buf_check_and_grow(struct lu_buf *buf, size_t len)
- 	return 0;
- }
- EXPORT_SYMBOL(lu_buf_check_and_grow);
-+
-+/**
-+ * lu_buf_cpy_ptr() - Copy from pointer to lu_buf.
-+ * @dst: Unallocated or pre-existing lu_buf.
-+ * @src: Pointer to data to be copied.
-+ * @len: Length of data to be copied.
-+ * @off: Offset to copy into lu_buf at.
-+ *
-+ * Return: 0 if successful, -ENOMEM
-+ */
-+int lu_buf_cpy_ptr(struct lu_buf *dst, void *src, size_t len,
-+		   loff_t off)
-+{
-+	size_t size = len + off;
-+	int rc = 0;
-+
-+	if (!dst->lb_buf)
-+		lu_buf_alloc(dst, size);
-+
-+	if (!dst->lb_buf)
-+		return -ENOMEM;
-+
-+	rc = lu_buf_check_and_grow(dst, size);
-+	if (rc)
-+		return rc;
-+
-+	memcpy(dst->lb_buf + off, src, len);
-+
-+	return 0;
-+}
-+EXPORT_SYMBOL(lu_buf_cpy_ptr);
 diff --git a/lustre/osp/osp_sync.c b/lustre/osp/osp_sync.c
 index be0f901575..b68589cda2 100644
 --- a/lustre/osp/osp_sync.c

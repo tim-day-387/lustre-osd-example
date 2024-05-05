@@ -11,6 +11,27 @@
 
 #include "osd_internal.h"
 
+int lu_buf_cpy_ptr(struct lu_buf *dst, void *src, size_t len,
+		   loff_t off)
+{
+	size_t size = len + off;
+	int rc = 0;
+
+	if (!dst->lb_buf)
+		lu_buf_alloc(dst, size);
+
+	if (!dst->lb_buf)
+		return -ENOMEM;
+
+	rc = lu_buf_check_and_grow(dst, size);
+	if (rc)
+		return rc;
+
+	memcpy(dst->lb_buf + off, src, len);
+
+	return 0;
+}
+
 void osd_buf_free(struct osd_buf *buf)
 {
 	unsigned int i;
