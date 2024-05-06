@@ -1,9 +1,24 @@
 Lustre OSD Example
 ==================
 
-Implements a simple in-memory OSD device for Lustre. This enables
-Lustre servers to be run without any backing filesystem, such as
-ldiskfs or openZFS.
+Introduction and Motivation
+---------------------------
+
+Implements a simple in-memory OSD device for Lustre. Rather than
+persisting data to a traditional filesystem (such as ext4 or openZFS),
+this OSD maps the OSD API to custom in-memory data structures.
+
+This enables Lustre servers to be run without any 3rd party filesystem,
+such as ext4 (in the form of ldiskfs) or openZFS.
+
+This driver has a few goals:
+1) Learn more about Lustre! Working backwards from the data store
+   has been very helpful in understanding Lustre internals.
+2) Enable Lustre servers for very new kernels - It should be possible
+   to test Lustre without having to juggle ldiskfs patches or openZFS
+   compatibility.
+3) Serve as a simple OSD example.
+4) Help explore possible improvements in other parts of Lustre.
 
 +--------------------------------------------------------------------+
 | This is for learning purposes only! Do NOT use for important data! |
@@ -40,7 +55,6 @@ Object Handling
   Other quick implementation notes:
   - Implemented osd_statfs() (but not space accounting)
   - Remove LFSCK support and lprocfs cruft (for now?)
-  - Remove osd_declare_* functions (we write directly to memory)
   - Implemented small reads/writes, index operations, and iterators
   - Implemented xattr handling (handled similarly to indices)
   - Implemented dir index! (some entries are virtualized)
@@ -77,3 +91,25 @@ Progress
 - MDT target mostly works! (can create files, dirs, symlinks)
 - OSS target mostly works! (can create files, the data is the
   same after cache flush, and mount/umount)
+
+References
+----------
+
+There are three publicly available OSD implementations to refer to. The
+openZFS OSD tends to be simpler to grasp (in my opinion) compared to
+ldiskfs. The btrfs implementation provides a sort of "minimum viable"
+reference. The official OSD documentation provides a strong overview
+to what an OSD is (and isn't). However, it can be ambiguous at times.
+Finally, the Lustre codebase itself has (at times) good in-tree
+documentation.
+
+- Original Lustre OSD implementation - ldiskfs
+  http://git.whamcloud.com/?p=fs/lustre-release.git;a=tree;f=lustre/osd-ldiskfs;hb=HEAD
+- Second Lustre OSD implementation - openZFS
+  http://git.whamcloud.com/?p=fs/lustre-release.git;a=tree;f=lustre/osd-zfs;hb=HEAD
+- PoC btrfs Lustre OSD
+  https://github.com/LiXi-storage/lustre-btrfs
+- Official OSD documentation
+  Lustre tree - Documentation/osd-api.txt
+- In-tree documentation
+  Lustre tree - lustre/include/dt_object.c

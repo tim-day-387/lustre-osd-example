@@ -41,8 +41,6 @@ TOOD (Bugs)
   more (freeing, deleting, and more!)
 - Be careful about passing back correct info
   to callers
-- osd_oi.c has a bunch of FID cruft that can
-  be moved
 - Do proper attr management; we should capture
   all data passed about osd_object and push it
   to osd_data
@@ -54,7 +52,7 @@ TOOD (Bugs)
   being expressed correctly?
 - On cleanup, we can crash on osp_sync_thread(), with
   ASSERTION(count < 10)
-- During highly parallel workloads, we crash in
-  osd_buf_check_and_grow() for accessing invalid address
 - Add invariant checking! Our verbose logging to too much
   for real testing!
+- Need to run every sanity.sh test one-by-one to see
+  which are broken!
