@@ -79,7 +79,7 @@ function osd_mark() {
 function test_10() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	insmod build/osd_mem.ko || error "load_module failed"
+	insmod build/osd_mem.ko || true
 	echo $VB_OSD_DEBUG | tee /sys/module/osd_mem/parameters/verbose_debug
 
 	# This must be run in iteractive mode, since attach and setup
@@ -108,7 +108,7 @@ function test_10() {
 function test_20() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	insmod build/osd_mem.ko || error "load_module failed"
+	insmod build/osd_mem.ko || true
 	echo $VB_OSD_DEBUG | tee /sys/module/osd_mem/parameters/verbose_debug
 
 	# Setup servers
@@ -143,7 +143,7 @@ function test_20() {
 function test_22() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	insmod build/osd_mem.ko || error "load_module failed"
+	insmod build/osd_mem.ko || true
 
 	# OSD mem specific variables
 	export MEM_OSS="1"
@@ -166,7 +166,7 @@ function test_22() {
 function test_30() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	insmod build/osd_mem.ko || error "load_module failed"
+	insmod build/osd_mem.ko || true
 	echo $VB_OSD_DEBUG | tee /sys/module/osd_mem/parameters/verbose_debug
 
 	# Grab ENV variables for OSD mem
@@ -194,7 +194,7 @@ function test_30() {
 function test_32() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	insmod build/osd_mem.ko || error "load_module failed"
+	insmod build/osd_mem.ko || true
 	echo $VB_OSD_DEBUG | tee /sys/module/osd_mem/parameters/verbose_debug
 
 	# Grab ENV variables for OSD mem
@@ -223,7 +223,7 @@ function test_32() {
 function test_40() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	insmod build/osd_mem.ko || error "load_module failed"
+	insmod build/osd_mem.ko || true
 	echo $VB_OSD_DEBUG | tee /sys/module/osd_mem/parameters/verbose_debug
 
 	# Setup servers
@@ -256,10 +256,11 @@ function test_40() {
 function test_50() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	insmod build/osd_mem.ko || error "load_module failed"
+	insmod build/osd_mem.ko || true
 	load_module kunit/llog_test || error "load_module failed"
 
 	# Grab ENV variables for OSD mem
+	export FSTYPE="mem"
 	export OSD_MEM_TGT_TYPE=${OSD_MEM_TGT_TYPE:-"MGT"}
 	export OSD_MEM_INDEX=${OSD_MEM_INDEX:-"0"}
 	export OSD_MEM_MGS_NID=${OSD_MEM_MGS_NID:-"$(hostname -i)@tcp"}
@@ -301,7 +302,7 @@ function test_50() {
 function test_60() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	insmod build/osd_mem.ko || error "load_module failed"
+	insmod build/osd_mem.ko || true
 
 	# Setup servers
 	export MEM_MDS="1"
@@ -336,9 +337,10 @@ function test_60() {
 function test_70() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	insmod build/osd_mem.ko || error "load_module failed"
+	insmod build/osd_mem.ko || true
 
 	# Setup servers
+	export FSTYPE="mem"
 	export MEM_MDS="1"
 	export MEM_OSS="1"
 	export MDSCOUNT="4"
@@ -396,11 +398,12 @@ function test_70() {
 function test_80() {
 	local dev_path="/sys/kernel/debug/lustre/devices"
 
-	insmod build/osd_mem.ko || error "load_module failed"
+	insmod build/osd_mem.ko || true
 
 	stack_trap "run_osd_cleanup"
 
 	# Setup servers
+	export FSTYPE="mem"
 	export MEM_MDS="1"
 	export MEM_OSS="1"
 	export MDSCOUNT="4"

@@ -1,4 +1,4 @@
-From 0a1c985351da9d93e30079387b260f9b3784e4d5 Mon Sep 17 00:00:00 2001
+From e0559974d7d75139c528c2e810eadf420faa4bd8 Mon Sep 17 00:00:00 2001
 From: Timothy Day <tday141@gmail.com>
 Date: Sun, 5 May 2024 01:20:34 -0400
 Subject: [PATCH] osd-mem: in-memory OSD
@@ -12,13 +12,13 @@ Signed-off-by: Timothy Day <tday141@gmail.com>
  .../include/uapi/linux/lustre/lustre_disk.h   |   1 +
  lustre/mgs/lproc_mgs.c                        |   7 +-
  lustre/osp/osp_sync.c                         |  27 ++-
- lustre/tests/test-framework.sh                |  73 ++++++-
+ lustre/tests/test-framework.sh                | 100 ++++++++-
  lustre/utils/Makefile.am                      |  16 ++
  lustre/utils/libmount_utils_mem.c             | 201 ++++++++++++++++++
  lustre/utils/mkfs_lustre.c                    |   4 -
  lustre/utils/mount_lustre.c                   |  15 ++
  lustre/utils/mount_utils.h                    |   3 +
- 11 files changed, 324 insertions(+), 26 deletions(-)
+ 11 files changed, 351 insertions(+), 26 deletions(-)
  create mode 100644 lustre/utils/libmount_utils_mem.c
 
 diff --git a/config/lustre-build.m4 b/config/lustre-build.m4
@@ -122,16 +122,30 @@ index be0f901575..b68589cda2 100644
  	lu_env_fini(env);
  
 diff --git a/lustre/tests/test-framework.sh b/lustre/tests/test-framework.sh
-index aac78eeed5..ae0745de08 100755
+index aac78eeed5..b140f6384f 100755
 --- a/lustre/tests/test-framework.sh
 +++ b/lustre/tests/test-framework.sh
-@@ -1075,6 +1075,15 @@ load_modules_local() {
+@@ -38,6 +38,13 @@ export LSNAPSHOT_LOG="/var/log/lsnapshot.log"
+ 
+ export DATA_SEQ_MAX_WIDTH=0x1ffffff
+ 
++# In-memory OSD
++if [[ $FSTYPE == "mem" ]]; then
++	export MEM_OSS="1"
++	export MEM_MDS="1"
++	export NOFORMAT="1"
++fi
++
+ # sles12 umount has a issue with -d option
+ [ -e /etc/SuSE-release ] && grep -w VERSION /etc/SuSE-release | grep -wq 12 && {
+ 	export UMOUNT="umount"
+@@ -1075,6 +1082,15 @@ load_modules_local() {
  			load_module ../ldiskfs/ldiskfs
  			load_module osd-ldiskfs/osd_ldiskfs
  		fi
 +
 +		if [[ -n "$MEM_OSS" ]] || [[ -n "$MEM_MDS" ]]; then
-+			load_module osd-mem/osd_mem
++			insmod ../lustre-osd-example/build/osd_mem.ko || true
 +		fi
 +
 +		if [[ -n "$VB_OSD_DEBUG" ]] && [[ -f /sys/module/osd_mem/parameters/verbose_debug ]]; then
@@ -141,7 +155,16 @@ index aac78eeed5..ae0745de08 100755
  		load_module mgs/mgs
  		load_module mdd/mdd
  		load_module mdt/mdt
-@@ -2422,6 +2431,17 @@ mount_facet() {
+@@ -1684,6 +1700,8 @@ devicelabel() {
+ 	zfs)
+ 		label=$(do_facet ${facet} "$ZFS get -H -o value lustre:svname \
+ 		                           ${dev} 2>/dev/null");;
++	mem )
++		:;;
+ 	*)
+ 		error "unknown fstype!";;
+ 	esac
+@@ -2422,6 +2440,17 @@ mount_facet() {
  	local mntpt=$(facet_mntpt $facet)
  	local opts="${!opt} $@"
  	local fstype=$(facet_fstype $facet)
@@ -159,7 +182,7 @@ index aac78eeed5..ae0745de08 100755
  	local devicelabel
  	local dm_dev=${!dev}
  
-@@ -2446,21 +2466,48 @@ mount_facet() {
+@@ -2446,21 +2475,54 @@ mount_facet() {
  
  		devicelabel=$(do_facet ${facet} "$ZFS get -H -o value \
  						lustre:svname $dm_dev");;
@@ -191,8 +214,14 @@ index aac78eeed5..ae0745de08 100755
 +			fi
 +
 +			# Grab ENV variables for OSD mem
-+			if [[ -n "$MEM_MDS" ]] && [[ $node_type == "MDS" ]]; then
++			if [[ -n "$MEM_MDS" ]] && [[ $node_type == "MDS" ]] && (( $index == 0 )); then
 +				export OSD_MEM_PRIMARY_MDT="1"
++			else
++				unset OSD_MEM_PRIMARY_MDT
++			fi
++
++			# Grab ENV variables for OSD mem
++			if [[ -n "$MEM_MDS" ]] && [[ $node_type == "MDS" ]]; then
 +				export OSD_MEM_TGT_TYPE="MDT"
 +				export OSD_MEM_INDEX=$index
 +				export OSD_MEM_MGS_NID="$(hostname -i)@tcp"
@@ -212,7 +241,7 @@ index aac78eeed5..ae0745de08 100755
  			do_facet ${facet} "$LCTL set_param \
  				seq.cli-$(devicelabel $facet $dm_dev)-super.width=$seq_width"
  		fi
-@@ -2493,6 +2540,8 @@ mount_facet() {
+@@ -2493,6 +2555,8 @@ mount_facet() {
  				grep -E ':[a-zA-Z]{3}[0-9]{4}'" "" ||
  				error "$dm_dev failed to initialize!";;
  
@@ -221,7 +250,7 @@ index aac78eeed5..ae0745de08 100755
  		*)
  			error "unknown fstype!";;
  		esac
-@@ -2504,13 +2553,14 @@ mount_facet() {
+@@ -2504,13 +2568,14 @@ mount_facet() {
  		do_facet $facet "sync; sleep 1; sync"
  	fi
  
@@ -242,7 +271,61 @@ index aac78eeed5..ae0745de08 100755
  
  	return $RC
  }
-@@ -5413,6 +5463,9 @@ formatall() {
+@@ -4843,6 +4908,8 @@ ostdevname() {
+ 			#try $OSTZFSDEVn - independent of vdev
+ 			DEVNAME=OSTZFSDEV$num
+ 			eval DEVPTR=${!DEVNAME:=${FSNAME}-ost${num}/ost${num}};;
++		mem )
++			:;;
+ 		* )
+ 			error "unknown fstype!";;
+ 	esac
+@@ -4867,6 +4934,8 @@ ostvdevname() {
+ 			# Device formatted by zfs
+ 			DEVNAME=OSTDEV$num
+ 			eval VDEVPTR=${!DEVNAME:=${OSTDEVBASE}${num}};;
++		mem )
++			:;;
+ 		* )
+ 			error "unknown fstype!";;
+ 	esac
+@@ -4891,6 +4960,8 @@ mdsdevname() {
+ 			# try $MDSZFSDEVn - independent of vdev
+ 			DEVNAME=MDSZFSDEV$num
+ 			eval DEVPTR=${!DEVNAME:=${FSNAME}-mdt${num}/mdt${num}};;
++		mem )
++			:;;
+ 		* )
+ 			error "unknown fstype!";;
+ 	esac
+@@ -4913,6 +4984,8 @@ mdsvdevname() {
+ 			# Device formatted by ZFS
+ 			local DEVNAME=MDSDEV$num
+ 			eval VDEVPTR=${!DEVNAME:=${MDSDEVBASE}${num}};;
++		mem )
++			:;;
+ 		* )
+ 			error "unknown fstype!";;
+ 	esac
+@@ -4941,6 +5014,8 @@ mgsdevname() {
+ 		else
+ 			DEVPTR=${MGSZFSDEV:-${FSNAME}-mgs/mgs}
+ 		fi;;
++	mem )
++		:;;
+ 	* )
+ 		error "unknown fstype!";;
+ 	esac
+@@ -4965,6 +5040,8 @@ mgsvdevname() {
+ 		elif [ -n "$MGSDEV" ]; then
+ 			VDEVPTR=$MGSDEV
+ 		fi;;
++	mem )
++		:;;
+ 	* )
+ 		error "unknown fstype!";;
+ 	esac
+@@ -5413,6 +5490,9 @@ formatall() {
  
  	export OST_INDICES=($(hostlist_expand "$OST_INDEX_LIST"))
  	check_ost_indices
