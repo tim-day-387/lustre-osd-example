@@ -303,9 +303,21 @@ err:
 	RETURN(rc);
 }
 
+static void osd_fid_fini(const struct lu_env *env, struct osd_device *osd)
+{
+	if (osd->od_cl_seq == NULL)
+		return;
+
+	seq_client_fini(osd->od_cl_seq);
+	OBD_FREE_PTR(osd->od_cl_seq);
+	osd->od_cl_seq = NULL;
+}
+
 static int osd_shutdown(const struct lu_env *env, struct osd_device *o)
 {
-	NOT_IMPLEMENTED(0);
+	ENTRY;
+	osd_fid_fini(env, o);
+	RETURN(0);
 }
 
 static int osd_process_config(const struct lu_env *env,
@@ -354,17 +366,56 @@ static int osd_recovery_complete(const struct lu_env *env, struct lu_device *d)
 	NOT_IMPLEMENTED(0);
 }
 
+static int osd_fid_init(const struct lu_env *env, struct osd_device *osd)
+{
+	struct seq_server_site *ss = osd_seq_site(osd);
+	int rc = 0;
+
+	ENTRY;
+	if (osd->od_is_ost || osd->od_cl_seq != NULL)
+		RETURN(0);
+
+	if (unlikely(ss == NULL))
+		RETURN(-ENODEV);
+
+	OBD_ALLOC_PTR(osd->od_cl_seq);
+	if (osd->od_cl_seq == NULL)
+		RETURN(-ENOMEM);
+
+	seq_client_init(osd->od_cl_seq, NULL, LUSTRE_SEQ_METADATA,
+			osd->od_svname, ss->ss_server_seq);
+
+	if (ss->ss_node_id == 0) {
+		/*
+		 * If the OSD on the sequence controller(MDT0), then allocate
+		 * sequence here, otherwise allocate sequence after connected
+		 * to MDT0 (see mdt_register_lwp_callback()).
+		 */
+		rc = seq_server_alloc_meta(osd->od_cl_seq->lcs_srv,
+				   &osd->od_cl_seq->lcs_space, env);
+	}
+
+	RETURN(rc);
+}
+
 static int osd_prepare(const struct lu_env *env, struct lu_device *pdev,
 		       struct lu_device *dev)
 {
-	NOT_IMPLEMENTED(0);
+	struct osd_device *osd = osd_dev(dev);
+	int rc = 0;
+
+	rc = osd_fid_init(env, osd);
+
+	RETURN(rc);
 }
 
 static int osd_fid_alloc(const struct lu_env *env, struct lu_device *d,
 			 struct lu_fid *fid, struct lu_object *parent,
 			 const struct lu_name *name)
 {
-	NOT_IMPLEMENTED(0);
+	struct osd_device *osd = osd_dev(d);
+
+	return seq_client_alloc_fid(env, osd->od_cl_seq, fid);
 }
 
 struct lu_object *osd_object_alloc(const struct lu_env *env,
