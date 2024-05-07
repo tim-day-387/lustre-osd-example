@@ -363,19 +363,81 @@ function test_70() {
 	# 24B - Fail; striped dirs are broken?
 	# 27n, 27o, 27oo, 27p, 27q, 27r, 27v - Test error; no label for mds?
 	# 27u - Fail; this runs too slow!
-	export EXCEPT="0f 4 17o 17g 24v 24w 24A 24B"
-	export EXCEPT="$EXCEPT 27n 27o 27oo 27p 27q 27r 27v"
-	export EXCEPT="$EXCEPT 27u"
+	# 27y - Test error; no label for mds?
+	# 27z - Test error; restarting OSS fails?
+	# 27A - Test error; stripe size is equal, but script fails?
+	# 27Cd - Test error; no label for mds?
+	# 27F - Fail; checkstat failed!
+	# 27G - Fail; still testpool!
+	# 27M - Fail; incorrect stripe count!
+	# 31e - Fail; remove of open non-empty directory fails
+	# 31g, 31h, 31i, 31n - Fail; nlink issues?
+	# 33i - Fail; striped directory can be accessed when one MDT is down
+	# 34a - Fail; truncate file that has not been opened
+	# 34b - Fail; O_RDONLY doesn't work
+	# 34c - Fail; O_RDRW doesn't work
+	# 34d, 34e, 34f, 34g, 34h - Fail; seems like size acct'ing wrong?
+	# 39o, 39p - Fail; nlink issues?
+	# 49 - Test error; no label for ost?
+	# 52a, 52b - Fail; Append only doesn't work
+	# 53 - Test error; no labels?
+	# 56c - Fail; device status isn't working?
+	# 56oc, 56od, 56ra - Fail; some attr is being reported correctly?
+	# 56xb, 56xc - Fail; links broken?
+	# 56aa, 56ab - Fail; size/block attr wrong?
+	# 56eda, 56edb - Fail; links broken?
+	# 56eg - Fail; It seems like find variants are broken?
+	# 60g - Fail; LFSCK doesn't work!
+	# 60h - Fail; IOC_MDC_GETFILEINFO ioctl failed
+	# 64i - Fail; We can't restart OSS correctly?
+	# 65g - Fail; Deleting default striping troubles...
+	# 65k - Test error; no labels?
+	# 65n - Fail; extended attribute woes...
+	# 66 - Fail; block acct'ing still broken
+	# 77l - Test error; no labels?
+	# 81b - Fail; space acct'ing? ENOSPC issues...
+	# 101g - Fail; Big bulk(4/16 MiB) readahead
+	# 102a, 102h, 102ha - Fail; user xattrs might not be working
+	# 102k - Fail; we don't crash, but the attrs are wrong?
+	# 102r, 102t - Fail; extended attribute woes...
+	# 103e, 103f - Fail; ACL issues?
+	# 104a - Test error; no labels?
+	# 104d - Fail; lctl dl is busted?
+	# 110 - Fail; filename length checking
+	# 119e, 119f, 119g, 119h - Fail; rotational checking
+	# 120b - Fail; one cancel RPC occured?
+	# 123e, 123h - Fail; Input/Output error
+	# 124b - Crash; LDLM kunit test explodes
+	# 130a, 130b, 130c, 130d, 130e, 130g - Fail; filefrag issues
+	# 133c - Fail; destroy counter broken?
+	# 150a - Fail; truncate issues
+	# 154B, 154f - Fail; linkea? ldiskfs?
+	# 154g - Fail; FID to Path issues?
+	# 155, 156, 160 - Fail; Perhaps we need a working procfs?
+	# 161c, 161b - Fail; Changelog issues
+	# 165 - Fail; ofd access log
+	# 184d, 184e - Fail; Input/Output error
+	# 185 - Fail; Volatile file support
+	# 187a - Fail; Data version issues
+	# 205a - Fail; Changelog issues
+	# 205h - Fail; extended attribute woes...
+	# 208 - Fail; Exclusive open? This hangs forever?
+	export EXCEPT="0f 4 17o 17g 24v 24w 24A 24B 27n 27o 27oo 27p"
+	export EXCEPT="$EXCEPT 27q 27r 27v 27u 27y 27z 27A 27Cd 27F"
+	export EXCEPT="$EXCEPT 27G 27M 31e 31g 31h 31i 31n 33i 34a 34b"
+	export EXCEPT="$EXCEPT 34c 34d 34e 34f 34g 34h 39o 39p 49 52a 52b"
+	export EXCEPT="$EXCEPT 53 56c 56oc 56od 56ra 56xb 56xc 56aa 56ab"
+	export EXCEPT="$EXCEPT 56eda 56edb 56eg 60g 60h 64i 65g 65k 65n 66"
+	export EXCEPT="$EXCEPT 77l 81b 101g 102a 102h 102ha 102k 102r 102t"
+	export EXCEPT="$EXCEPT 103e 103f 104a 104d 110 119e 119g 119h 120b"
+	export EXCEPT="$EXCEPT 123e 123h 124b 130a 130b 130c 130d 130e 130g"
+	export EXCEPT="$EXCEPT 133c 150a 154B 154f 154g 155 156 160 161c 161b"
+	export EXCEPT="$EXCEPT 165 184d 184e 185 187a 205a 205h 208"
 
-	# Skip everything else
-	export STOP_AT="27wa"
-	export EXCEPT="$EXCEPT 211"
+	# Start soon!
+	export STOP_AT="207b"
 
 	# Hacks to make script run correctly
-	export FSTYPE="zfs"
-	export mds1_FSTYPE="zfs"
-	export ost1_FSTYPE="zfs"
-	export ost2_FSTYPE="zfs"
 	export RUNAS_ID="1000"
 
 	# Run the script!
