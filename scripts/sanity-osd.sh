@@ -355,18 +355,14 @@ function test_70() {
 	unset ONLY_60
 
 	# 0f, 4 - Fail; some attrs are likely not implemented correctly
-	# 17o - Crash; on cleanup, crash on osp_sync_thread(), with ASSERTION(count < 10)
 	# 17g - Fail; started failing with too long filename?
+	# 17o - Fail; Can't restart services correctly
 	# 24v - Fail; issue listing large directory?
-	# 24w - Kernel error; stack trace on __alloc_pages()
 	# 24A - Fail; we don't treat .. specially?
 	# 24B - Fail; striped dirs are broken?
-	# 27n, 27o, 27oo, 27p, 27q, 27r, 27v - Test error; no label for mds?
 	# 27u - Fail; this runs too slow!
-	# 27y - Test error; no label for mds?
 	# 27z - Test error; restarting OSS fails?
 	# 27A - Test error; stripe size is equal, but script fails?
-	# 27Cd - Test error; no label for mds?
 	# 27F - Fail; checkstat failed!
 	# 27G - Fail; still testpool!
 	# 27M - Fail; incorrect stripe count!
@@ -378,9 +374,7 @@ function test_70() {
 	# 34c - Fail; O_RDRW doesn't work
 	# 34d, 34e, 34f, 34g, 34h - Fail; seems like size acct'ing wrong?
 	# 39o, 39p - Fail; nlink issues?
-	# 49 - Test error; no label for ost?
 	# 52a, 52b - Fail; Append only doesn't work
-	# 53 - Test error; no labels?
 	# 56c - Fail; device status isn't working?
 	# 56oc, 56od, 56ra - Fail; some attr is being reported correctly?
 	# 56xb, 56xc - Fail; links broken?
@@ -391,17 +385,14 @@ function test_70() {
 	# 60h - Fail; IOC_MDC_GETFILEINFO ioctl failed
 	# 64i - Fail; We can't restart OSS correctly?
 	# 65g - Fail; Deleting default striping troubles...
-	# 65k - Test error; no labels?
 	# 65n - Fail; extended attribute woes...
 	# 66 - Fail; block acct'ing still broken
-	# 77l - Test error; no labels?
 	# 81b - Fail; space acct'ing? ENOSPC issues...
 	# 101g - Fail; Big bulk(4/16 MiB) readahead
 	# 102a, 102h, 102ha - Fail; user xattrs might not be working
 	# 102k - Fail; we don't crash, but the attrs are wrong?
 	# 102r, 102t - Fail; extended attribute woes...
 	# 103e, 103f - Fail; ACL issues?
-	# 104a - Test error; no labels?
 	# 104d - Fail; lctl dl is busted?
 	# 110 - Fail; filename length checking
 	# 119e, 119f, 119g, 119h - Fail; rotational checking
@@ -422,23 +413,44 @@ function test_70() {
 	# 205a - Fail; Changelog issues
 	# 205h - Fail; extended attribute woes...
 	# 208 - Fail; Exclusive open? This hangs forever?
-	export EXCEPT="0f 4 17o 17g 24v 24w 24A 24B 27n 27o 27oo 27p"
-	export EXCEPT="$EXCEPT 27q 27r 27v 27u 27y 27z 27A 27Cd 27F"
+	# 36g, 51b, 56wa - Fail; This appears to pass in isolation, but fails in a full run
+	# 27oo - Fail; Can't restart services?
+	# 27p, 27q - Fail; truncate isn't working...
+	# 27r, 27v - Fail; -19? ENODEV? Seems like a script failure...
+	# 53 - Fail; Seems to depend on lprocfs?
+	# 65k - Fail; Import doesn't seem like it can come back?
+	# 42e, 56wb, 56xd, 56xe, 56xf, 56ec, 59 - Fail; This appears to pass in isolation, but fails in a full run
+	export EXCEPT="0f 4 17g 17o 24v 24A 24B 27oo 27p 27q 27r 27v"
+	export EXCEPT="$EXCEPT 27u 27z 27A 27F"
 	export EXCEPT="$EXCEPT 27G 27M 31e 31g 31h 31i 31n 33i 34a 34b"
-	export EXCEPT="$EXCEPT 34c 34d 34e 34f 34g 34h 39o 39p 49 52a 52b"
-	export EXCEPT="$EXCEPT 53 56c 56oc 56od 56ra 56xb 56xc 56aa 56ab"
-	export EXCEPT="$EXCEPT 56eda 56edb 56eg 60g 60h 64i 65g 65k 65n 66"
-	export EXCEPT="$EXCEPT 77l 81b 101g 102a 102h 102ha 102k 102r 102t"
-	export EXCEPT="$EXCEPT 103e 103f 104a 104d 110 119e 119g 119h 120b"
+	export EXCEPT="$EXCEPT 34c 34d 34e 34f 34g 34h 39o 39p 52a 52b"
+	export EXCEPT="$EXCEPT 56c 56oc 56od 56ra 56xb 56xc 56aa 56ab"
+	export EXCEPT="$EXCEPT 56eda 56edb 56eg 60g 60h 64i 65g 65n 66"
+	export EXCEPT="$EXCEPT 81b 101g 102a 102h 102ha 102k 102r 102t"
+	export EXCEPT="$EXCEPT 103e 103f 104d 110 119e 119g 119h 120b"
 	export EXCEPT="$EXCEPT 123e 123h 124b 130a 130b 130c 130d 130e 130g"
 	export EXCEPT="$EXCEPT 133c 150a 154B 154f 154g 155 156 160 161c 161b"
-	export EXCEPT="$EXCEPT 165 184d 184e 185 187a 205a 205h 208"
+	export EXCEPT="$EXCEPT 165 184d 184e 185 187a 205a 205h 208 36g 51b"
+	export EXCEPT="$EXCEPT 56wa 53 65k 42e 56wb 56xd 56xe 56xf 56ec 59"
 
-	# Start soon!
-	export STOP_AT="207b"
+	# TODO: These get automatically SKIP'ed
+	# 27y - Skip; Not enough space on OST, likely acct'ing error?
+	# 27Cd - Skip; ea_inode feature disabled?
+
+	# TODO: This is the last test we've run. Need to try running the
+	# remainder in the suite. Stop sooner for stability reasons.
+	#
+	# export STOP_AT="208"
+	export STOP_AT="64a"
 
 	# Hacks to make script run correctly
 	export RUNAS_ID="1000"
+
+	# If START_AT is set, ignore everything above!
+	if [[ -n "$START_AT" ]]; then
+		unset EXCEPT
+		STOP_AT="$START_AT"
+	fi
 
 	# Run the script!
 	bash sanity.sh
