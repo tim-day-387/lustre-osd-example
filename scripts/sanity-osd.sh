@@ -354,13 +354,20 @@ function test_70() {
 	unset ONLY
 	unset ONLY_60
 
-	# 0f, 4 - Fail; some attrs are likely not implemented correctly
+	# These tests only test for unsupported features.
+	#
+	# 0f - No symlinks from lprocfs
+	# 156 - No stats (similar to openZFS)
+	export EXCEPT="0f 156"
+
+	# These tests are supposed to work, but currently fail.
+	#
+	# 4 - Fail; Removing an in-use directory should not work
 	# 17g - Fail; started failing with too long filename?
 	# 17o - Fail; Can't restart services correctly
 	# 24v - Fail; issue listing large directory?
 	# 24A - Fail; we don't treat .. specially?
 	# 24B - Fail; striped dirs are broken?
-	# 27u - Fail; this runs too slow!
 	# 27z - Test error; restarting OSS fails?
 	# 27A - Test error; stripe size is equal, but script fails?
 	# 27F - Fail; checkstat failed!
@@ -404,7 +411,7 @@ function test_70() {
 	# 150a - Fail; truncate issues
 	# 154B, 154f - Fail; linkea? ldiskfs?
 	# 154g - Fail; FID to Path issues?
-	# 155, 156, 160 - Fail; Perhaps we need a working procfs?
+	# 160 - Fail; Changelog sanity regression testing?
 	# 161c, 161b - Fail; Changelog issues
 	# 165 - Fail; ofd access log
 	# 184d, 184e - Fail; Input/Output error
@@ -417,11 +424,12 @@ function test_70() {
 	# 27oo - Fail; Can't restart services?
 	# 27p, 27q - Fail; truncate isn't working...
 	# 27r, 27v - Fail; -19? ENODEV? Seems like a script failure...
-	# 53 - Fail; Seems to depend on lprocfs?
+	# 53 - Fail; last_id isn't working correctly?
 	# 65k - Fail; Import doesn't seem like it can come back?
 	# 42e, 56wb, 56xd, 56xe, 56xf, 56ec, 59 - Fail; This appears to pass in isolation, but fails in a full run
-	export EXCEPT="0f 4 17g 17o 24v 24A 24B 27oo 27p 27q 27r 27v"
-	export EXCEPT="$EXCEPT 27u 27z 27A 27F"
+	# 27u - Fail; test appears to think that not everything is flushed/deleted?
+	export EXCEPT="$EXCEPT 4 17g 17o 24v 24A 24B 27oo 27p 27q 27r 27v"
+	export EXCEPT="$EXCEPT 27z 27A 27F"
 	export EXCEPT="$EXCEPT 27G 27M 31e 31g 31h 31i 31n 33i 34a 34b"
 	export EXCEPT="$EXCEPT 34c 34d 34e 34f 34g 34h 39o 39p 52a 52b"
 	export EXCEPT="$EXCEPT 56c 56oc 56od 56ra 56xb 56xc 56aa 56ab"
@@ -429,9 +437,9 @@ function test_70() {
 	export EXCEPT="$EXCEPT 81b 101g 102a 102h 102ha 102k 102r 102t"
 	export EXCEPT="$EXCEPT 103e 103f 104d 110 119e 119g 119h 120b"
 	export EXCEPT="$EXCEPT 123e 123h 124b 130a 130b 130c 130d 130e 130g"
-	export EXCEPT="$EXCEPT 133c 150a 154B 154f 154g 155 156 160 161c 161b"
+	export EXCEPT="$EXCEPT 133c 150a 154B 154f 154g 160 161c 161b"
 	export EXCEPT="$EXCEPT 165 184d 184e 185 187a 205a 205h 208 36g 51b"
-	export EXCEPT="$EXCEPT 56wa 53 65k 42e 56wb 56xd 56xe 56xf 56ec 59"
+	export EXCEPT="$EXCEPT 56wa 53 65k 42e 56wb 56xd 56xe 56xf 56ec 59 27u"
 
 	# TODO: These get automatically SKIP'ed
 	# 27y - Skip; Not enough space on OST, likely acct'ing error?
@@ -441,7 +449,7 @@ function test_70() {
 	# remainder in the suite. Stop sooner for stability reasons.
 	#
 	# export STOP_AT="208"
-	export STOP_AT="64a"
+	export STOP_AT=${STOP_AT:-"64a"}
 
 	# Hacks to make script run correctly
 	export RUNAS_ID="1000"
