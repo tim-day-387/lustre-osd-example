@@ -374,19 +374,16 @@ function test_70() {
 	# 27G - Fail; still testpool!
 	# 27M - Fail; incorrect stripe count!
 	# 31e - Fail; remove of open non-empty directory fails
-	# 31g, 31h, 31i, 31n - Fail; nlink issues?
 	# 33i - Fail; striped directory can be accessed when one MDT is down
 	# 34a - Fail; truncate file that has not been opened
 	# 34b - Fail; O_RDONLY doesn't work
 	# 34c - Fail; O_RDRW doesn't work
 	# 34d, 34e, 34f, 34g, 34h - Fail; seems like size acct'ing wrong?
-	# 39o, 39p - Fail; nlink issues?
 	# 52a, 52b - Fail; Append only doesn't work
 	# 56c - Fail; device status isn't working?
 	# 56oc, 56od, 56ra - Fail; some attr is being reported correctly?
-	# 56xb, 56xc - Fail; links broken?
+	# 56xc - Fail; incorrect stripe count!
 	# 56aa, 56ab - Fail; size/block attr wrong?
-	# 56eda, 56edb - Fail; links broken?
 	# 56eg - Fail; It seems like find variants are broken?
 	# 60g - Fail; LFSCK doesn't work!
 	# 60h - Fail; IOC_MDC_GETFILEINFO ioctl failed
@@ -430,10 +427,10 @@ function test_70() {
 	# 27u - Fail; test appears to think that not everything is flushed/deleted?
 	export EXCEPT="$EXCEPT 4 17g 17o 24v 24A 24B 27oo 27p 27q 27r 27v"
 	export EXCEPT="$EXCEPT 27z 27A 27F"
-	export EXCEPT="$EXCEPT 27G 27M 31e 31g 31h 31i 31n 33i 34a 34b"
-	export EXCEPT="$EXCEPT 34c 34d 34e 34f 34g 34h 39o 39p 52a 52b"
-	export EXCEPT="$EXCEPT 56c 56oc 56od 56ra 56xb 56xc 56aa 56ab"
-	export EXCEPT="$EXCEPT 56eda 56edb 56eg 60g 60h 64i 65g 65n 66"
+	export EXCEPT="$EXCEPT 27G 27M 31e 33i 34a 34b"
+	export EXCEPT="$EXCEPT 34c 34d 34e 34f 34g 34h 52a 52b"
+	export EXCEPT="$EXCEPT 56c 56oc 56od 56ra 56xc 56aa 56ab"
+	export EXCEPT="$EXCEPT 56eg 60g 60h 64i 65g 65n 66"
 	export EXCEPT="$EXCEPT 81b 101g 102a 102h 102ha 102k 102r 102t"
 	export EXCEPT="$EXCEPT 103e 103f 104d 110 119e 119g 119h 120b"
 	export EXCEPT="$EXCEPT 123e 123h 124b 130a 130b 130c 130d 130e 130g"

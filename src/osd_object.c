@@ -384,9 +384,21 @@ static int osd_declare_ref_add(const struct lu_env *env, struct dt_object *dt,
 static int osd_ref_add(const struct lu_env *env, struct dt_object *dt,
 		       struct thandle *th)
 {
+	struct osd_object *obj = osd_obj(dt);
+	struct osd_data *data = obj->oo_data;
+	struct lu_attr *od_attr = &data->od_attr;
+	int rc = 0;
+
 	ENTRY_TH(th);
 	OSD_TRACE(dt);
-	RETURN_TH(th, 0);
+
+	spin_lock(&obj->oo_guard);
+	if (unlikely(!dt_object_exists(dt)))
+		rc = -ENOENT;
+	else
+		od_attr->la_nlink++;
+	spin_unlock(&obj->oo_guard);
+	RETURN_TH(th, rc);
 }
 
 /*
@@ -403,9 +415,21 @@ static int osd_declare_ref_del(const struct lu_env *env, struct dt_object *dt,
 static int osd_ref_del(const struct lu_env *env, struct dt_object *dt,
 		       struct thandle *th)
 {
+	struct osd_object *obj = osd_obj(dt);
+	struct osd_data *data = obj->oo_data;
+	struct lu_attr *od_attr = &data->od_attr;
+	int rc = 0;
+
 	ENTRY_TH(th);
 	OSD_TRACE(dt);
-	RETURN_TH(th, 0);
+
+	spin_lock(&obj->oo_guard);
+	if (unlikely(!dt_object_exists(dt)))
+		rc = -ENOENT;
+	else
+		od_attr->la_nlink--;
+	spin_unlock(&obj->oo_guard);
+	RETURN_TH(th, rc);
 }
 
 static int osd_xattr_get(const struct lu_env *env, struct dt_object *dt,
