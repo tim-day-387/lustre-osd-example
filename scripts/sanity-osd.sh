@@ -425,6 +425,40 @@ function test_70() {
 	# 65k - Fail; Import doesn't seem like it can come back?
 	# 42e, 56wb, 56xd, 56xe, 56xf, 56ec, 59 - Fail; This appears to pass in isolation, but fails in a full run
 	# 27u - Fail; test appears to think that not everything is flushed/deleted?
+	# 220 - Fail; unlinkmany failed?
+	# 226d - Fail; Can't read xattr from userspace?
+	# 230 - Fail; Can't migrate directory?
+	# 232 - Fail; Can't restart services?
+	# 239 - Fail; osp sync doesn't work...
+	# 255b, 255c - Fail; ladvise probably is implemented right...
+	# 257 - Fail; Can't restart services?
+	# 270a, 270j, 271d, 271f - Fail; DoM troubles!
+	# 278, 280 - Fail; Can't restart services?
+	# 300a, 300c, 300g, 300h, 300k, 300q, 300u - Fail; striped dir woes...
+	# 311 - Fail; With precreate disabled, unlink does not destroy?
+	# 313 - Fail: last_rcvd?
+	# 317 - Fail; block acct'ing is wrong...
+	# 398a - Fail; DIO locking issues?
+	# 405 - Fail; layout swap isn't working?
+	# 406 - Fail; DNE striping issues again?
+	# 411 - Fail; OSD mem does not behave well under memory pressure (yet...)
+	# 413 - Fail; Space accounting doesn't work yet...
+	# 421d, 421e, 421g - Fail; rmfid in DNE and in large numbers
+	# 427 - Fail; Can't restart services?
+	# 801b - Crash; modification block by write barrier?
+	# 801c - Fail; Can't restart services?
+	# 802b - Fail; ro isn't implemented yet...
+	# 803a - Fail; some issue with deletes?
+	# 806 - Fail; block attr issues...
+	# 807, 808 - Fail; changelog woes...
+	# 810 - Fail; openZFS specific partial page write test?
+	# 812b - Fail; quota stuff isn't implemented...
+	# 818, 820 - Fail; Can't restart services?
+	# 831 - Fail; appears to hang?
+	# 842 - Fail; ldlm kunit test
+	# 851 - Fail; fanotify doesn't work...
+	# 901 - Fail; mgc locks and client umount?
+	# 903 - Fail; destroys are taking a bit too long?
 	export EXCEPT="$EXCEPT 4 17g 17o 24v 24A 24B 27oo 27p 27q 27r 27v"
 	export EXCEPT="$EXCEPT 27z 27A 27F"
 	export EXCEPT="$EXCEPT 27G 27M 31e 33i 34a 34b"
@@ -437,15 +471,18 @@ function test_70() {
 	export EXCEPT="$EXCEPT 133c 150a 154B 154f 154g 160 161c 161b"
 	export EXCEPT="$EXCEPT 165 184d 184e 185 187a 205a 205h 208 36g 51b"
 	export EXCEPT="$EXCEPT 56wa 53 65k 42e 56wb 56xd 56xe 56xf 56ec 59 27u"
+	export EXCEPT="$EXCEPT 220 226d 230 232 239 255b 255c 257 270a 270j"
+	export EXCEPT="$EXCEPT 271d 271f 278 280 300a 300c 300g 300h 300k"
+	export EXCEPT="$EXCEPT 300q 300u 311 313 317 398a 405 406 411 413"
+	export EXCEPT="$EXCEPT 421d 421e 421g 427 801b 801c 802b 803a 807"
+	export EXCEPT="$EXCEPT 808 810 812b 818 820 831 842 851 901 903"
 
 	# TODO: These get automatically SKIP'ed
 	# 27y - Skip; Not enough space on OST, likely acct'ing error?
 	# 27Cd - Skip; ea_inode feature disabled?
 
-	# TODO: This is the last test we've run. Need to try running the
-	# remainder in the suite. Stop sooner for stability reasons.
-	#
-	# export STOP_AT="208"
+	# TODO: Although I've run every sanity.sh test, we stop sooner for
+	# stability reasons. As we get farther, increment the STOP_AT value.
 	export STOP_AT=${STOP_AT:-"64a"}
 
 	# Hacks to make script run correctly

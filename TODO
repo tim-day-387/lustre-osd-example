@@ -56,3 +56,10 @@ TOOD (Bugs)
   for real testing!
 - Need to run every sanity.sh test one-by-one to see
   which are broken!
+
+TODO (QoL)
+- Improve stucture naming so we don't copy what all
+  of the other OSDs are doing (grep!)
+- Think about clarifying file structure
+- Remove weird test script nested sanity test stuff
+- Fix kernel configure stuff
