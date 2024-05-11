@@ -316,13 +316,6 @@ static int osd_dir_lookup(const struct lu_env *env, struct dt_object *dt,
 
 	OSD_DEBUG("key - %s\n", name);
 
-	if (name[0] == '.' && name[1] == 0) {
-		const struct lu_fid *f = lu_object_fid(&dt->do_lu);
-
-		memcpy(rec, f, sizeof(*f));
-		RETURN(1);
-	}
-
 	list_for_each_entry(entry, &data->od_index_list,
 			    oi_list) {
 		if (!strcmp(name, entry->oi_key.lb_buf)) {
@@ -350,12 +343,6 @@ static int osd_dir_insert(const struct lu_env *env, struct dt_object *dt,
 	int rc = 0;
 
 	ENTRY_TH(th);
-
-	/* Do not store ".", instead generate it
-	 * during iteration
-	 */
-	if (name[0] == '.' && name[1] == 0)
-		RETURN_TH(th, rc = 0);
 
 	OBD_ALLOC_PTR(entry);
 	if (!entry)
@@ -406,9 +393,6 @@ static int osd_dir_delete(const struct lu_env *env, struct dt_object *dt,
 
 	OSD_DEBUG("key - %s\n", name);
 
-	if (name[0] == '.' && name[1] == 0)
-		RETURN_TH(th, 0);
-
 	list_for_each_entry_safe(entry, tmp, &data->od_index_list,
 				 oi_list) {
 		if (!strcmp(name, entry->oi_key.lb_buf)) {
@@ -437,13 +421,8 @@ static int osd_dir_it_get(const struct lu_env *env, struct dt_it *di,
 	ENTRY;
 	OSD_IT_TRACE(it);
 
-	if (name && name[0] == '.' && name[1] == 0)
+	if (list_is_head(it->oit_cursor, &data->od_index_list))
 		RETURN(1);
-
-	if (list_is_head(it->oit_cursor, &data->od_index_list)) {
-		it->oit_cursor = it->oit_cursor->next;
-		RETURN(1);
-	}
 
 	list_for_each_entry(entry, &data->od_index_list,
 			    oi_list) {
@@ -536,6 +515,7 @@ static int osd_dir_it_rec(const struct lu_env *env, const struct dt_it *di,
 	struct osd_index_data *entry = container_of(it->oit_cursor,
 						    struct osd_index_data,
 						    oi_list);
+	struct osd_data *data = obj->oo_data;
 	struct lu_fid fid;
 	char *name = (char *)entry->oi_key.lb_buf;
 	int namelen;
@@ -543,12 +523,12 @@ static int osd_dir_it_rec(const struct lu_env *env, const struct dt_it *di,
 	ENTRY;
 	OSD_IT_TRACE(it);
 
-	if (name[0] == '.' && name[1] == 0) {
-		/* notice hash=0 here, this is needed to avoid
-		 * case when some real entry (after ./..) may
-		 * have hash=0. in this case the client would
-		 * be confused having records out of hash order.
-		 */
+	/* TODO: Technically, the list_head isn't a real entry. But
+	 * doing nothing can induce a crash or issues with the client.
+	 * So, just return the entry for the current directory. ZFS
+	 * seems to do the same.
+	 */
+	if (list_is_head(it->oit_cursor, &data->od_index_list)) {
 		lde->lde_hash = cpu_to_le64(0);
 		strcpy(lde->lde_name, ".");
 		lde->lde_namelen = cpu_to_le16(1);
@@ -609,6 +589,9 @@ static __u64 osd_dir_it_store(const struct lu_env *env,
 {
 	struct osd_it *it = (struct osd_it *)di;
 	struct osd_index_data *entry;
+	struct osd_object *obj = it->oit_obj;
+	struct osd_data *data = obj->oo_data;
+	char *name;
 
 	ENTRY;
 	OSD_IT_TRACE(it);
@@ -616,6 +599,17 @@ static __u64 osd_dir_it_store(const struct lu_env *env,
 	entry = container_of(it->oit_cursor,
 			     struct osd_index_data,
 			     oi_list);
+
+	name = (char *)entry->oi_key.lb_buf;
+
+	if (list_is_head(it->oit_cursor, &data->od_index_list))
+		RETURN(0);
+
+	if (name[0] == '.' && name[1] == 0)
+		RETURN(0);
+
+	if (name[0] == '.' && name[1] == '.' && name[2] == 0)
+		RETURN(0);
 
 	RETURN(entry->oi_hash);
 }

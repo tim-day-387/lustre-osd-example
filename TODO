@@ -56,6 +56,8 @@ TOOD (Bugs)
   for real testing!
 - Need to run every sanity.sh test one-by-one to see
   which are broken!
+- Revisit dir index with a focus on sanity/24v and
+  sanity/24A
 
 TODO (QoL)
 - Improve stucture naming so we don't copy what all

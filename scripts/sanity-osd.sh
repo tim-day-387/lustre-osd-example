@@ -362,7 +362,6 @@ function test_70() {
 
 	# These tests are supposed to work, but currently fail.
 	#
-	# 4 - Fail; Removing an in-use directory should not work
 	# 17g - Fail; started failing with too long filename?
 	# 17o - Fail; Can't restart services correctly
 	# 24v - Fail; issue listing large directory?
@@ -373,7 +372,6 @@ function test_70() {
 	# 27F - Fail; checkstat failed!
 	# 27G - Fail; still testpool!
 	# 27M - Fail; incorrect stripe count!
-	# 31e - Fail; remove of open non-empty directory fails
 	# 33i - Fail; striped directory can be accessed when one MDT is down
 	# 34a - Fail; truncate file that has not been opened
 	# 34b - Fail; O_RDONLY doesn't work
@@ -459,9 +457,9 @@ function test_70() {
 	# 851 - Fail; fanotify doesn't work...
 	# 901 - Fail; mgc locks and client umount?
 	# 903 - Fail; destroys are taking a bit too long?
-	export EXCEPT="$EXCEPT 4 17g 17o 24v 24A 24B 27oo 27p 27q 27r 27v"
+	export EXCEPT="$EXCEPT 17g 17o 24v 24A 24B 27oo 27p 27q 27r 27v"
 	export EXCEPT="$EXCEPT 27z 27A 27F"
-	export EXCEPT="$EXCEPT 27G 27M 31e 33i 34a 34b"
+	export EXCEPT="$EXCEPT 27G 27M 33i 34a 34b"
 	export EXCEPT="$EXCEPT 34c 34d 34e 34f 34g 34h 52a 52b"
 	export EXCEPT="$EXCEPT 56c 56oc 56od 56ra 56xc 56aa 56ab"
 	export EXCEPT="$EXCEPT 56eg 60g 60h 64i 65g 65n 66"
