@@ -376,9 +376,16 @@ function test_70() {
 	export EXCEPT="$EXCEPT 17o 27oo 27z 64i 232 257 278 280 427 801c"
 	export EXCEPT="$EXCEPT 818 820"
 
+	# Pass in isolation, but fail in full run?
+	#
+	# 36g - Fail; FMD not expired by ping?
+	# 51b - Fail; div by 0 error, space accounting wrong?
+	# 59 - Fail; sync doesn't appear to work?
+	# 77g - Fail; No space left on device...
+	export EXCEPT="$EXCEPT 36g 51b 59 77g"
+
 	# These tests are supposed to work, but currently fail.
 	#
-	# 17g - Fail; started failing with too long filename?
 	# 24v - Fail; issue listing large directory?
 	# 24A - Fail; we don't treat .. specially?
 	# 24B - Fail; striped dirs are broken?
@@ -428,12 +435,10 @@ function test_70() {
 	# 205a - Fail; Changelog issues
 	# 205h - Fail; extended attribute woes...
 	# 208 - Fail; Exclusive open? This hangs forever?
-	# 36g, 51b, 56wa - Fail; This appears to pass in isolation, but fails in a full run
 	# 27p, 27q - Fail; truncate isn't working...
 	# 27r, 27v - Fail; -19? ENODEV? Seems like a script failure...
 	# 53 - Fail; last_id isn't working correctly?
 	# 65k - Fail; Import doesn't seem like it can come back?
-	# 42e, 56wb, 56xd, 56xe, 56xf, 56ec, 59 - Fail; This appears to pass in isolation, but fails in a full run
 	# 27u - Fail; test appears to think that not everything is flushed/deleted?
 	# 220 - Fail; unlinkmany failed?
 	# 226d - Fail; Can't read xattr from userspace?
@@ -464,7 +469,7 @@ function test_70() {
 	# 901 - Fail; mgc locks and client umount?
 	# 903 - Fail; destroys are taking a bit too long?
 	# 48 - Crash; re-working dir iterator seems to have broken this :(
-	export EXCEPT="$EXCEPT 17g 24v 24A 24B 27p 27q 27r 27v"
+	export EXCEPT="$EXCEPT 24v 24A 24B 27p 27q 27r 27v"
 	export EXCEPT="$EXCEPT 27A 27F"
 	export EXCEPT="$EXCEPT 27G 27M 33i 34a 34b"
 	export EXCEPT="$EXCEPT 34c 34d 34e 34f 34g 34h 52a 52b"
@@ -474,8 +479,8 @@ function test_70() {
 	export EXCEPT="$EXCEPT 103e 103f 104d 110 119e 119g 119h 120b"
 	export EXCEPT="$EXCEPT 123e 123h 124b 130a 130b 130c 130d 130e 130g"
 	export EXCEPT="$EXCEPT 133c 150a 154B 154f 154g 160 161c 161b"
-	export EXCEPT="$EXCEPT 165 184d 184e 185 187a 205a 205h 208 36g 51b"
-	export EXCEPT="$EXCEPT 56wa 53 65k 42e 56wb 56xd 56xe 56xf 56ec 59 27u"
+	export EXCEPT="$EXCEPT 165 184d 184e 185 187a 205a 205h 208"
+	export EXCEPT="$EXCEPT 53 65k 27u"
 	export EXCEPT="$EXCEPT 220 226d 230 239 255b 255c 270a 270j"
 	export EXCEPT="$EXCEPT 271d 271f 300a 300c 300g 300h 300k"
 	export EXCEPT="$EXCEPT 300q 300u 311 313 317 398a 405 406 411 413"
@@ -495,7 +500,7 @@ function test_70() {
 
 	# TODO: Although I've run every sanity.sh test, we stop sooner for
 	# stability reasons. As we get farther, increment the STOP_AT value.
-	export STOP_AT=${STOP_AT:-"64a"}
+	export STOP_AT=${STOP_AT:-"101a"}
 
 	# Hacks to make script run correctly
 	export RUNAS_ID="1000"
