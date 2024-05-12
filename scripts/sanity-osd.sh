@@ -358,16 +358,30 @@ function test_70() {
 	#
 	# 0f - No symlinks from lprocfs
 	# 156 - No stats (similar to openZFS)
-	export EXCEPT="0f 156"
+	export EXCEPT="$EXCEPT 0f 156"
+
+	# In-memory OSD can't do anything sane during a
+	# service restart, so exclude these tests.
+	#
+	# 17o - Fail; Can't restart services correctly
+	# 27oo - Fail; Can't restart services?
+	# 27z - Test error; restarting OSS fails?
+	# 64i - Fail; We can't restart OSS correctly?
+	# 232 - Fail; Can't restart services?
+	# 257 - Fail; Can't restart services?
+	# 278, 280 - Fail; Can't restart services?
+	# 427 - Fail; Can't restart services?
+	# 801c - Fail; Can't restart services?
+	# 818, 820 - Fail; Can't restart services?
+	export EXCEPT="$EXCEPT 17o 27oo 27z 64i 232 257 278 280 427 801c"
+	export EXCEPT="$EXCEPT 818 820"
 
 	# These tests are supposed to work, but currently fail.
 	#
 	# 17g - Fail; started failing with too long filename?
-	# 17o - Fail; Can't restart services correctly
 	# 24v - Fail; issue listing large directory?
 	# 24A - Fail; we don't treat .. specially?
 	# 24B - Fail; striped dirs are broken?
-	# 27z - Test error; restarting OSS fails?
 	# 27A - Test error; stripe size is equal, but script fails?
 	# 27F - Fail; checkstat failed!
 	# 27G - Fail; still testpool!
@@ -385,7 +399,6 @@ function test_70() {
 	# 56eg - Fail; It seems like find variants are broken?
 	# 60g - Fail; LFSCK doesn't work!
 	# 60h - Fail; IOC_MDC_GETFILEINFO ioctl failed
-	# 64i - Fail; We can't restart OSS correctly?
 	# 65g - Fail; Deleting default striping troubles...
 	# 65n - Fail; extended attribute woes...
 	# 66 - Fail; block acct'ing still broken
@@ -416,7 +429,6 @@ function test_70() {
 	# 205h - Fail; extended attribute woes...
 	# 208 - Fail; Exclusive open? This hangs forever?
 	# 36g, 51b, 56wa - Fail; This appears to pass in isolation, but fails in a full run
-	# 27oo - Fail; Can't restart services?
 	# 27p, 27q - Fail; truncate isn't working...
 	# 27r, 27v - Fail; -19? ENODEV? Seems like a script failure...
 	# 53 - Fail; last_id isn't working correctly?
@@ -426,12 +438,9 @@ function test_70() {
 	# 220 - Fail; unlinkmany failed?
 	# 226d - Fail; Can't read xattr from userspace?
 	# 230 - Fail; Can't migrate directory?
-	# 232 - Fail; Can't restart services?
 	# 239 - Fail; osp sync doesn't work...
 	# 255b, 255c - Fail; ladvise probably is implemented right...
-	# 257 - Fail; Can't restart services?
 	# 270a, 270j, 271d, 271f - Fail; DoM troubles!
-	# 278, 280 - Fail; Can't restart services?
 	# 300a, 300c, 300g, 300h, 300k, 300q, 300u - Fail; striped dir woes...
 	# 311 - Fail; With precreate disabled, unlink does not destroy?
 	# 313 - Fail: last_rcvd?
@@ -442,39 +451,36 @@ function test_70() {
 	# 411 - Fail; OSD mem does not behave well under memory pressure (yet...)
 	# 413 - Fail; Space accounting doesn't work yet...
 	# 421d, 421e, 421g - Fail; rmfid in DNE and in large numbers
-	# 427 - Fail; Can't restart services?
 	# 801b - Crash; modification block by write barrier?
-	# 801c - Fail; Can't restart services?
 	# 802b - Fail; ro isn't implemented yet...
 	# 803a - Fail; some issue with deletes?
 	# 806 - Fail; block attr issues...
 	# 807, 808 - Fail; changelog woes...
 	# 810 - Fail; openZFS specific partial page write test?
 	# 812b - Fail; quota stuff isn't implemented...
-	# 818, 820 - Fail; Can't restart services?
 	# 831 - Fail; appears to hang?
 	# 842 - Fail; ldlm kunit test
 	# 851 - Fail; fanotify doesn't work...
 	# 901 - Fail; mgc locks and client umount?
 	# 903 - Fail; destroys are taking a bit too long?
 	# 48 - Crash; re-working dir iterator seems to have broken this :(
-	export EXCEPT="$EXCEPT 17g 17o 24v 24A 24B 27oo 27p 27q 27r 27v"
-	export EXCEPT="$EXCEPT 27z 27A 27F"
+	export EXCEPT="$EXCEPT 17g 24v 24A 24B 27p 27q 27r 27v"
+	export EXCEPT="$EXCEPT 27A 27F"
 	export EXCEPT="$EXCEPT 27G 27M 33i 34a 34b"
 	export EXCEPT="$EXCEPT 34c 34d 34e 34f 34g 34h 52a 52b"
 	export EXCEPT="$EXCEPT 56c 56oc 56od 56ra 56xc 56aa 56ab"
-	export EXCEPT="$EXCEPT 56eg 60g 60h 64i 65g 65n 66"
+	export EXCEPT="$EXCEPT 56eg 60g 60h 65g 65n 66"
 	export EXCEPT="$EXCEPT 81b 101g 102a 102h 102ha 102k 102r 102t"
 	export EXCEPT="$EXCEPT 103e 103f 104d 110 119e 119g 119h 120b"
 	export EXCEPT="$EXCEPT 123e 123h 124b 130a 130b 130c 130d 130e 130g"
 	export EXCEPT="$EXCEPT 133c 150a 154B 154f 154g 160 161c 161b"
 	export EXCEPT="$EXCEPT 165 184d 184e 185 187a 205a 205h 208 36g 51b"
 	export EXCEPT="$EXCEPT 56wa 53 65k 42e 56wb 56xd 56xe 56xf 56ec 59 27u"
-	export EXCEPT="$EXCEPT 220 226d 230 232 239 255b 255c 257 270a 270j"
-	export EXCEPT="$EXCEPT 271d 271f 278 280 300a 300c 300g 300h 300k"
+	export EXCEPT="$EXCEPT 220 226d 230 239 255b 255c 270a 270j"
+	export EXCEPT="$EXCEPT 271d 271f 300a 300c 300g 300h 300k"
 	export EXCEPT="$EXCEPT 300q 300u 311 313 317 398a 405 406 411 413"
-	export EXCEPT="$EXCEPT 421d 421e 421g 427 801b 801c 802b 803a 807"
-	export EXCEPT="$EXCEPT 808 810 812b 818 820 831 842 851 901 903"
+	export EXCEPT="$EXCEPT 421d 421e 421g 801b 802b 803a 807"
+	export EXCEPT="$EXCEPT 808 810 812b 831 842 851 901 903"
 	export EXCEPT="$EXCEPT 48"
 
 	# TODO: Some tests only seem to fail on CentOS? EXCEPT a few
