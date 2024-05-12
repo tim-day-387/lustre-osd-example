@@ -384,6 +384,14 @@ function test_70() {
 	# 77g - Fail; No space left on device...
 	export EXCEPT="$EXCEPT 36g 51b 59 77g"
 
+	# Skip some very slow tests! These are useful tests, but
+	# running them all the time makes development slower.
+	if [[ -n "$QUICK" ]]; then
+		export EXCEPT="$EXCEPT 27b 27n 27o 27Ce 27D 27I 27U 33h 33hh"
+		export EXCEPT="$EXCEPT 36f 42e 51f 55b 56xg 56wb 56xh 56ea"
+		export EXCEPT="$EXCEPT 63a 64g 65o 73 76a 77f 77k 77l 79 80"
+	fi
+
 	# These tests are supposed to work, but currently fail.
 	#
 	# 24v - Fail; issue listing large directory?
