@@ -105,9 +105,9 @@ static int osd_declare_destroy(const struct lu_env *env, struct dt_object *dt,
 static int osd_destroy(const struct lu_env *env, struct dt_object *dt,
 		       struct thandle *th)
 {
-	//struct osd_object *obj = osd_obj(dt);
-	//struct osd_device *osd = osd_obj2dev(obj);
-	//struct osd_data *data;
+	struct osd_object *obj = osd_obj(dt);
+	struct osd_device *osd = osd_obj2dev(obj);
+	struct osd_data *data;
 
 	ENTRY_TH(th);
 	OSD_TRACE(dt);
@@ -117,11 +117,22 @@ static int osd_destroy(const struct lu_env *env, struct dt_object *dt,
 	 * free errors. I don't really know what to
 	 * do here.
 	 */
-	// data = obj->oo_data;
-	// rhashtable_remove_fast(&osd->od_data_hash,
-	// 		       &data->od_hash,
-	// 		       osd_data_params);
-	// osd_data_free(data, NULL);
+	down(&obj->oo_guard);
+
+	if (unlikely(!dt_object_exists(dt) || obj->oo_destroyed)) {
+		up(&obj->oo_guard);
+		RETURN_TH(th, -ENOENT);
+	}
+
+	data = obj->oo_data;
+	rhashtable_remove_fast(&osd->od_data_hash,
+			       &data->od_hash,
+			       osd_data_params);
+	osd_data_free(data, NULL);
+	obj->oo_data = NULL;
+	up(&obj->oo_guard);
+	set_bit(LU_OBJECT_HEARD_BANSHEE, &dt->do_lu.lo_header->loh_flags);
+	obj->oo_destroyed = 1;
 
 	RETURN_TH(th, 0);
 }
@@ -187,24 +198,30 @@ static int osd_write_locked(const struct lu_env *env, struct dt_object *dt)
 static int osd_attr_get(const struct lu_env *env, struct dt_object *dt,
 			struct lu_attr *attr)
 {
-	struct osd_object *osd = osd_obj(dt);
-	struct osd_data *data = osd->oo_data;
+	struct osd_object *obj = osd_obj(dt);
+	struct osd_data *data = obj->oo_data;
 	struct lu_attr *od_attr = &data->od_attr;
 	struct osd_buf *buf = &data->od_buf;
 
 	ENTRY;
 	OSD_TRACE(dt);
 
-	spin_lock(&osd->oo_guard);
+	down(&obj->oo_guard);
+
+	if (unlikely(!dt_object_exists(dt) || obj->oo_destroyed)) {
+		up(&obj->oo_guard);
+		RETURN(-ENOENT);
+	}
+
 	od_attr->la_valid |= LA_ATIME | LA_MTIME | LA_CTIME | LA_MODE |
 		LA_SIZE | LA_BLOCKS | LA_UID | LA_GID |
 		LA_PROJID | LA_FLAGS | LA_NLINK | LA_RDEV |
 		LA_BLKSIZE | LA_TYPE | LA_BTIME;
 	od_attr->la_size = buf->ob_len;
 
-	osd->oo_dt.do_lu.lo_header->loh_attr |= data->od_attr.la_mode & S_IFMT;
+	obj->oo_dt.do_lu.lo_header->loh_attr |= data->od_attr.la_mode & S_IFMT;
 	*attr = data->od_attr;
-	spin_unlock(&osd->oo_guard);
+	up(&obj->oo_guard);
 
 	OSD_DEBUG("LA_SIZE=%llu\n", attr->la_size);
 	RETURN(0);
@@ -235,7 +252,12 @@ static int osd_attr_set(const struct lu_env *env, struct dt_object *dt,
 	ENTRY_TH(th);
 	OSD_TRACE(dt);
 
-	spin_lock(&obj->oo_guard);
+	down(&obj->oo_guard);
+
+	if (unlikely(!dt_object_exists(dt) || obj->oo_destroyed)) {
+		up(&obj->oo_guard);
+		RETURN_TH(th, -ENOENT);
+	}
 
 	/* Only allow set size for regular file */
 	if (!S_ISREG(dt->do_lu.lo_header->loh_attr))
@@ -282,7 +304,7 @@ static int osd_attr_set(const struct lu_env *env, struct dt_object *dt,
 		od_attr->la_gid = la->la_gid;
 
 out:
-	spin_unlock(&obj->oo_guard);
+	up(&obj->oo_guard);
 	RETURN_TH(th, rc);
 }
 
@@ -335,6 +357,7 @@ static int osd_create(const struct lu_env *env, struct dt_object *dt,
 
 	ENTRY_TH(th);
 
+	down(&obj->oo_guard);
 	obj->oo_dt.do_lu.lo_header->loh_attr |= LOHA_EXISTS;
 
 	data->od_attr = *attr;
@@ -366,6 +389,7 @@ static int osd_create(const struct lu_env *env, struct dt_object *dt,
 		break;
 	}
 
+	up(&obj->oo_guard);
 	OSD_TRACE(dt);
 	RETURN_TH(th, 0);
 }
@@ -392,12 +416,12 @@ static int osd_ref_add(const struct lu_env *env, struct dt_object *dt,
 	ENTRY_TH(th);
 	OSD_TRACE(dt);
 
-	spin_lock(&obj->oo_guard);
-	if (unlikely(!dt_object_exists(dt)))
+	down(&obj->oo_guard);
+	if (unlikely(!dt_object_exists(dt) || obj->oo_destroyed))
 		rc = -ENOENT;
 	else
 		od_attr->la_nlink++;
-	spin_unlock(&obj->oo_guard);
+	up(&obj->oo_guard);
 	RETURN_TH(th, rc);
 }
 
@@ -423,20 +447,20 @@ static int osd_ref_del(const struct lu_env *env, struct dt_object *dt,
 	ENTRY_TH(th);
 	OSD_TRACE(dt);
 
-	spin_lock(&obj->oo_guard);
-	if (unlikely(!dt_object_exists(dt)))
+	down(&obj->oo_guard);
+	if (unlikely(!dt_object_exists(dt) || obj->oo_destroyed))
 		rc = -ENOENT;
 	else
 		od_attr->la_nlink--;
-	spin_unlock(&obj->oo_guard);
+	up(&obj->oo_guard);
 	RETURN_TH(th, rc);
 }
 
 static int osd_xattr_get(const struct lu_env *env, struct dt_object *dt,
 			 struct lu_buf *buf, const char *name)
 {
-	struct osd_object *osd = osd_obj(dt);
-	struct osd_data *data = osd->oo_data;
+	struct osd_object *obj = osd_obj(dt);
+	struct osd_data *data = obj->oo_data;
 	struct osd_index_data *entry;
 
 	ENTRY;
@@ -444,24 +468,33 @@ static int osd_xattr_get(const struct lu_env *env, struct dt_object *dt,
 
 	OSD_DEBUG("xattr - %s\n", name);
 
+	down(&obj->oo_guard);
 	list_for_each_entry(entry, &data->od_xattr_list,
 			    oi_list) {
 		if (!strcmp(name, entry->oi_key.lb_buf)) {
-			if (!buf->lb_len || !buf->lb_buf)
+			if (!buf->lb_len || !buf->lb_buf) {
+				up(&obj->oo_guard);
 				RETURN(entry->oi_value.lb_len);
+			}
 
-			if (buf->lb_len < entry->oi_value.lb_len)
+			if (buf->lb_len < entry->oi_value.lb_len) {
+				up(&obj->oo_guard);
 				RETURN(-ERANGE);
+			}
 
-			if (entry->oi_value.lb_len == 0)
+			if (entry->oi_value.lb_len == 0) {
+				up(&obj->oo_guard);
 				RETURN(1);
+			}
 
 			memcpy(buf->lb_buf, entry->oi_value.lb_buf,
 			       buf->lb_len);
+			up(&obj->oo_guard);
 			RETURN(entry->oi_value.lb_len);
 		}
 	}
 
+	up(&obj->oo_guard);
 	RETURN(-ENODATA);
 }
 
@@ -482,31 +515,39 @@ static int osd_xattr_set(const struct lu_env *env, struct dt_object *dt,
 			 struct thandle *th)
 {
 	struct osd_index_data *entry, *tmp;
-	struct osd_object *osd = osd_obj(dt);
-	struct osd_data *data = osd->oo_data;
+	struct osd_object *obj = osd_obj(dt);
+	struct osd_data *data = obj->oo_data;
 	int rc = 0;
 
 	ENTRY_TH(th);
 
 	OSD_DEBUG("xattr - %s\n", name);
 
+	down(&obj->oo_guard);
 	list_for_each_entry(tmp, &data->od_xattr_list,
 			    oi_list) {
 		if (!strcmp(name, tmp->oi_key.lb_buf)) {
-			if (fl & LU_XATTR_CREATE)
+			if (fl & LU_XATTR_CREATE) {
+				up(&obj->oo_guard);
 				RETURN(-EEXIST);
+			}
 
 			rc = lu_buf_cpy(&tmp->oi_value, buf, 0);
+			up(&obj->oo_guard);
 			RETURN_TH(th, rc);
 		}
 	}
 
-	if (fl & LU_XATTR_REPLACE)
+	if (fl & LU_XATTR_REPLACE) {
+		up(&obj->oo_guard);
 		RETURN(-EEXIST);
+	}
 
 	OBD_ALLOC_PTR(entry);
-	if (!entry)
+	if (!entry) {
+		up(&obj->oo_guard);
 		RETURN_TH(th, -ENOMEM);
+	}
 
 	rc = lu_buf_cpy(&entry->oi_value, buf, 0);
 	if (rc)
@@ -520,6 +561,7 @@ static int osd_xattr_set(const struct lu_env *env, struct dt_object *dt,
 	list_add(&entry->oi_list, &data->od_xattr_list);
 
 	OSD_TRACE(dt);
+	up(&obj->oo_guard);
 	RETURN_TH(th, rc);
 
 out_free_value:
@@ -529,6 +571,7 @@ out_free_entry:
 	OBD_FREE_PTR(entry);
 
 	OSD_TRACE(dt);
+	up(&obj->oo_guard);
 	RETURN_TH(th, rc);
 }
 

@@ -125,6 +125,9 @@ static struct dt_it *osd_index_it_init(const struct lu_env *env,
 
 	ENTRY;
 
+	if (obj->oo_destroyed)
+		RETURN(ERR_PTR(-ENOENT));
+
 	OBD_ALLOC_PTR(it);
 	if (!it)
 		RETURN(ERR_PTR(-ENOMEM));
@@ -306,8 +309,8 @@ const struct dt_index_operations osd_index_ops = {
 static int osd_dir_lookup(const struct lu_env *env, struct dt_object *dt,
 			  struct dt_rec *rec, const struct dt_key *key)
 {
-	struct osd_object *osd = osd_obj(dt);
-	struct osd_data *data = osd->oo_data;
+	struct osd_object *obj = osd_obj(dt);
+	struct osd_data *data = obj->oo_data;
 	struct osd_index_data *entry;
 	char *name = (char *)key;
 
@@ -315,6 +318,9 @@ static int osd_dir_lookup(const struct lu_env *env, struct dt_object *dt,
 	OSD_TRACE(dt);
 
 	OSD_DEBUG("key - %s\n", name);
+
+	if (obj->oo_destroyed)
+		RETURN(-ENOENT);
 
 	list_for_each_entry(entry, &data->od_index_list,
 			    oi_list) {

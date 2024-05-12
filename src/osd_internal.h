@@ -98,17 +98,18 @@ struct osd_object {
 	 * concurrent grow/shrink. ldlm should protect
 	 * concurrent data access, but not how we
 	 * manage memory.
+	 *
+	 * Also, serialize some updates: destroy vs. others,
+	 * xattr_set, object block size change etc
+	 *
 	 * TODO: Find a better way!
 	 */
-	struct semaphore	 oo_sem_data;
+	struct semaphore	 oo_guard;
+
+	__u32			 oo_destroyed:1;
 
 	/* data osd_object refers to */
 	struct osd_data		*oo_data;
-
-	/* to serialize some updates: destroy vs. others,
-	 * xattr_set, object block size change etc
-	 */
-	spinlock_t		 oo_guard;
 
 	struct lu_object_header *oo_header;
 };

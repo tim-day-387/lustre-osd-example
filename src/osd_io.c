@@ -27,7 +27,7 @@ static ssize_t osd_read(const struct lu_env *env, struct dt_object *dt,
 	ssize_t size;
 	int rc;
 
-	down(&osd->oo_sem_data);
+	down(&osd->oo_guard);
 
 	avail = *pos >= sbuf->ob_len ? 0 :
 		sbuf->ob_len - *pos;
@@ -37,18 +37,18 @@ static ssize_t osd_read(const struct lu_env *env, struct dt_object *dt,
 	ENTRY;
 
 	if (size > avail) {
-		up(&osd->oo_sem_data);
+		up(&osd->oo_guard);
 		RETURN(-EBADR);
 	}
 
 	rc = osd_buf_read(sbuf, buf->lb_buf, size, *pos);
 	if (rc) {
-		up(&osd->oo_sem_data);
+		up(&osd->oo_guard);
 		RETURN(-EBADR);
 	}
 
 	*pos += size;
-	up(&osd->oo_sem_data);
+	up(&osd->oo_guard);
 
 	OSD_TRACE(dt);
 	OSD_DEBUG("TLSZ=%li,OFFSET=%lli,READSZ=%li,AVAIL=%li\n",
@@ -79,17 +79,17 @@ static ssize_t osd_write(const struct lu_env *env, struct dt_object *dt,
 
 	ENTRY_TH(th);
 
-	down(&osd->oo_sem_data);
+	down(&osd->oo_guard);
 	rc = osd_buf_write(dbuf, sbuf->lb_buf, sbuf->lb_len, *pos);
 	if (rc) {
-		up(&osd->oo_sem_data);
+		up(&osd->oo_guard);
 		RETURN_TH(th, rc);
 	}
 
 	*pos += sbuf->lb_len;
 	if (*pos > dbuf->ob_len)
 		dbuf->ob_len = *pos;
-	up(&osd->oo_sem_data);
+	up(&osd->oo_guard);
 
 	OSD_TRACE(dt);
 	OSD_DEBUG("TLSZ=%li,OFFSET=%lli,WRITESZ=%li\n",
@@ -135,10 +135,10 @@ static int osd_bufs_get(const struct lu_env *env, struct dt_object *dt,
 		  offset, len,
 		  (rw & DT_BUFS_TYPE_WRITE) ? "WRITE" : "READ");
 
-	down(&obj->oo_sem_data);
+	down(&obj->oo_guard);
 	rc = osd_buf_check_and_grow(buf, nbuf_sz);
 	if (rc) {
-		up(&obj->oo_sem_data);
+		up(&obj->oo_guard);
 		RETURN(rc);
 	}
 
@@ -150,7 +150,7 @@ static int osd_bufs_get(const struct lu_env *env, struct dt_object *dt,
 		lnb->lnb_flags = 0;
 		lnb->lnb_page = NULL;
 		lnb->lnb_rc = 0;
-		up(&obj->oo_sem_data);
+		up(&obj->oo_guard);
 		return 1;
 	}
 
@@ -192,14 +192,14 @@ static int osd_bufs_get(const struct lu_env *env, struct dt_object *dt,
 			  offset, len);
 	}
 
-	up(&obj->oo_sem_data);
+	up(&obj->oo_guard);
 	RETURN(npages);
 
 out_err:
 	if (npages > 0)
 		osd_bufs_put(env, dt, lnb - npages, npages);
 
-	up(&obj->oo_sem_data);
+	up(&obj->oo_guard);
 	RETURN(rc);
 }
 

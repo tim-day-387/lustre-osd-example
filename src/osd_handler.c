@@ -452,8 +452,7 @@ struct lu_object *osd_object_alloc(const struct lu_env *env,
 		oo->oo_dt.do_ops = &osd_obj_ops;
 		lu->lo_ops = &osd_lu_obj_ops;
 		init_rwsem(&oo->oo_sem);
-		sema_init(&oo->oo_sem_data, 1);
-		spin_lock_init(&oo->oo_guard);
+		sema_init(&oo->oo_guard, 1);
 
 		/* Random number to track osd_object */
 		get_random_bytes(&oo->oo_tracking_num, sizeof(int));
