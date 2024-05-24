@@ -62,7 +62,7 @@ struct osd_device {
 	char			 od_mntdev[128];
 	char			 od_svname[128];
 
-	int			 od_connects;
+	atomic_t		 od_connects;
 	int			 od_index;
 	struct lu_site		 od_site;
 

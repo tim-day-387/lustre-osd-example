@@ -592,18 +592,14 @@ static int osd_obd_connect(const struct lu_env *env, struct obd_export **exp,
 	struct lustre_handle conn;
 	int rc;
 
-	ENTRY;
-
-	CDEBUG(D_CONFIG, "connect #%d\n", osd->od_connects);
-
 	rc = class_connect(&conn, obd, cluuid);
 	if (rc)
 		RETURN(rc);
 
 	*exp = class_conn2export(&conn);
-	osd->od_connects++;
+	atomic_inc(&osd->od_connects);
 
-	RETURN(0);
+	return 0;
 }
 
 static int osd_obd_disconnect(struct obd_export *exp)
@@ -612,18 +608,13 @@ static int osd_obd_disconnect(struct obd_export *exp)
 	struct osd_device *osd = osd_dev(obd->obd_lu_dev);
 	int rc, release = 0;
 
-	ENTRY;
-
-	osd->od_connects--;
-	if (osd->od_connects == 0)
-		release = 1;
-
+	release = atomic_dec_and_test(&osd->od_connects);
 	rc = class_disconnect(exp);
 
 	if (rc == 0 && release)
 		class_manual_cleanup(obd);
 
-	RETURN(rc);
+	return rc;
 }
 
 static const struct obd_ops osd_obd_device_ops = {
