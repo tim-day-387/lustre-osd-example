@@ -112,11 +112,6 @@ static int osd_destroy(const struct lu_env *env, struct dt_object *dt,
 	ENTRY_TH(th);
 	OSD_TRACE(dt);
 
-	/*
-	 * TODO: This leads to a bunch of use after
-	 * free errors. I don't really know what to
-	 * do here.
-	 */
 	down(&obj->oo_guard);
 
 	if (unlikely(!dt_object_exists(dt) || obj->oo_destroyed)) {
