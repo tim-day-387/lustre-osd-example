@@ -70,8 +70,6 @@ struct osd_device {
 
 	struct osd_otable_it	*od_otable_it;
 	unsigned long long	 od_readcache_max_filesize;
-
-	struct lu_client_seq	*od_cl_seq;
 };
 
 struct osd_thandle {

@@ -303,20 +303,10 @@ err:
 	RETURN(rc);
 }
 
-static void osd_fid_fini(const struct lu_env *env, struct osd_device *osd)
-{
-	if (osd->od_cl_seq == NULL)
-		return;
-
-	seq_client_fini(osd->od_cl_seq);
-	OBD_FREE_PTR(osd->od_cl_seq);
-	osd->od_cl_seq = NULL;
-}
-
 static int osd_shutdown(const struct lu_env *env, struct osd_device *o)
 {
 	ENTRY;
-	osd_fid_fini(env, o);
+	seq_target_fini(env, &o->od_dt_dev);
 	RETURN(0);
 }
 
@@ -366,56 +356,16 @@ static int osd_recovery_complete(const struct lu_env *env, struct lu_device *d)
 	NOT_IMPLEMENTED(0);
 }
 
-static int osd_fid_init(const struct lu_env *env, struct osd_device *osd)
-{
-	struct seq_server_site *ss = osd_seq_site(osd);
-	int rc = 0;
-
-	ENTRY;
-	if (osd->od_is_ost || osd->od_cl_seq != NULL)
-		RETURN(0);
-
-	if (unlikely(ss == NULL))
-		RETURN(-ENODEV);
-
-	OBD_ALLOC_PTR(osd->od_cl_seq);
-	if (osd->od_cl_seq == NULL)
-		RETURN(-ENOMEM);
-
-	seq_client_init(osd->od_cl_seq, NULL, LUSTRE_SEQ_METADATA,
-			osd->od_svname, ss->ss_server_seq);
-
-	if (ss->ss_node_id == 0) {
-		/*
-		 * If the OSD on the sequence controller(MDT0), then allocate
-		 * sequence here, otherwise allocate sequence after connected
-		 * to MDT0 (see mdt_register_lwp_callback()).
-		 */
-		rc = seq_server_alloc_meta(osd->od_cl_seq->lcs_srv,
-				   &osd->od_cl_seq->lcs_space, env);
-	}
-
-	RETURN(rc);
-}
-
 static int osd_prepare(const struct lu_env *env, struct lu_device *pdev,
 		       struct lu_device *dev)
 {
 	struct osd_device *osd = osd_dev(dev);
 	int rc = 0;
 
-	rc = osd_fid_init(env, osd);
+	rc = seq_target_init(env, &osd->od_dt_dev, osd->od_svname,
+			     osd->od_is_ost);
 
 	RETURN(rc);
-}
-
-static int osd_fid_alloc(const struct lu_env *env, struct lu_device *d,
-			 struct lu_fid *fid, struct lu_object *parent,
-			 const struct lu_name *name)
-{
-	struct osd_device *osd = osd_dev(d);
-
-	return seq_client_alloc_fid(env, osd->od_cl_seq, fid);
 }
 
 struct lu_object *osd_object_alloc(const struct lu_env *env,
@@ -470,7 +420,7 @@ const struct lu_device_operations osd_lu_ops = {
 	.ldo_process_config	= osd_process_config,
 	.ldo_recovery_complete	= osd_recovery_complete,
 	.ldo_prepare		= osd_prepare,
-	.ldo_fid_alloc		= osd_fid_alloc,
+	.ldo_fid_alloc		= fid_alloc_generic,
 };
 
 const struct rhashtable_params osd_data_params = {
