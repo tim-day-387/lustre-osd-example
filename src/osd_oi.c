@@ -4,8 +4,6 @@
  * Author: Timothy Day <tday141@gmail.com>
  */
 
-#define DEBUG_SUBSYSTEM S_OSD
-
 #include <libcfs/linux/linux-hash.h>
 #include <libcfs/libcfs.h>
 #include <obd_support.h>

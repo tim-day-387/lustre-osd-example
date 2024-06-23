@@ -14,6 +14,8 @@
 #include <lustre_scrub.h>
 #include <obd.h>
 
+#undef DEBUG_SUBSYSTEM
+#define DEBUG_SUBSYSTEM S_OSD
 #define MAXNAMELEN 1000
 #define OSD_MAX_CACHE_SIZE OBD_OBJECT_EOF
 #define OSD_MAGIC 12345
