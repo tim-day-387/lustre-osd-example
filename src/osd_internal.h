@@ -290,6 +290,16 @@ static inline int lu_buf_cpy(struct lu_buf *dst,
 }
 
 /*
+ * FID related functions
+ */
+
+static inline int fid_is_fs_root(const struct lu_fid *fid)
+{
+	return fid_seq(fid) == FID_SEQ_LOCAL_FILE &&
+		fid_oid(fid) == OSD_FS_ROOT_OID;
+}
+
+/*
  * Custom Lustre debugging macros
  */
 

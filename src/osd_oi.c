@@ -17,55 +17,7 @@
 
 #include "osd_internal.h"
 
-static const struct named_oid oids[] = {
-	{ .oid = LAST_RECV_OID,	       .name = LAST_RCVD },
-	{ .oid = OFD_LAST_GROUP_OID,   .name = "LAST_GROUP" },
-	{ .oid = LLOG_CATALOGS_OID,    .name = "CATALOGS" },
-	{ .oid = MGS_CONFIGS_OID,      .name = "MOUNT_CONFIGS_DIR" },
-	{ .oid = FID_SEQ_SRV_OID,      .name = "seq_srv" },
-	{ .oid = FID_SEQ_CTL_OID,      .name = "seq_ctl" },
-	{ .oid = FLD_INDEX_OID,	       .name = "fld" },
-	{ .oid = MDD_LOV_OBJ_OID,      .name = LOV_OBJID },
-	{ .oid = OFD_HEALTH_CHECK_OID, .name = HEALTH_CHECK },
-	{ .oid = REPLY_DATA_OID,       .name = REPLY_DATA },
-	{ .oid = MDD_LOV_OBJ_OSEQ,     .name = LOV_OBJSEQ },
-	{ .oid = BATCHID_COMMITTED_OID, .name = "BATCHID" },
-	{ .oid = 0 }
-};
-
 static atomic_t object_count = ATOMIC_INIT(0);
-
-static char *named_oid2name(const unsigned long oid)
-{
-	int i = 0;
-
-	while (oids[i].oid) {
-		if (oids[i].oid == oid)
-			return oids[i].name;
-		i++;
-	}
-
-	return NULL;
-}
-
-static inline int fid_is_fs_root(const struct lu_fid *fid)
-{
-	return fid_seq(fid) == FID_SEQ_LOCAL_FILE &&
-		fid_oid(fid) == OSD_FS_ROOT_OID;
-}
-
-static void osd_get_name_from_fid(const struct lu_fid *fid,
-				  char *buf)
-{
-	char *name = named_oid2name(fid_oid(fid));
-
-	if (name)
-		strscpy(buf, name, strlen(name));
-	else
-		sprintf(buf, DFID_NOBRACE, PFID(fid));
-
-	OSD_DEBUG_FID(fid, " name=%s\n", buf);
-}
 
 void osd_data_free(void *data_input, void *args)
 {
@@ -118,7 +70,6 @@ int osd_data_find_or_create(const struct lu_env *env, struct osd_object *obj,
 	struct osd_device *osd = osd_obj2dev(obj);
 	struct osd_data *data;
 	struct osd_data *ret;
-	char name[128];
 
 	ENTRY;
 
@@ -160,11 +111,7 @@ int osd_data_find_or_create(const struct lu_env *env, struct osd_object *obj,
 		OSD_DEBUG_FID(fid, " fid is fs root\n");
 		obj->oo_dt.do_lu.lo_header->loh_attr |= S_IFDIR;
 		obj->oo_dt.do_lu.lo_header->loh_attr |= LOHA_EXISTS;
-		rcu_read_unlock();
-		RETURN(0);
 	}
-
-	osd_get_name_from_fid(fid, name);
 
 	rcu_read_unlock();
 	RETURN(0);
