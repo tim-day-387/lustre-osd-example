@@ -9,7 +9,7 @@
 #include <obd.h>
 #include <obd_class.h>
 
-#include "osd_internal.h"
+#include "common.h"
 
 int lu_buf_cpy_ptr(struct lu_buf *dst, void *src, size_t len,
 		   loff_t off)

@@ -13,7 +13,7 @@
 #include <lustre_disk.h>
 #include <lustre_fid.h>
 
-#include "osd_internal.h"
+#include "common.h"
 
 static atomic_t object_count = ATOMIC_INIT(0);
 

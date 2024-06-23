@@ -8,7 +8,7 @@
 #include <lustre_quota.h>
 #include <obd.h>
 
-#include "osd_internal.h"
+#include "common.h"
 
 static int osd_acct_index_lookup(const struct lu_env *env,
 				 struct dt_object *dtobj,

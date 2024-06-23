@@ -13,7 +13,7 @@
 #include <lustre_fid.h>
 #include <lustre_quota.h>
 
-#include "osd_internal.h"
+#include "common.h"
 
 static ssize_t osd_read(const struct lu_env *env, struct dt_object *dt,
 			struct lu_buf *buf, loff_t *pos)

@@ -12,7 +12,7 @@
 #include <lustre_disk.h>
 #include <lustre_fid.h>
 
-#include "osd_internal.h"
+#include "common.h"
 
 static int osd_index_lookup(const struct lu_env *env, struct dt_object *dt,
 			    struct dt_rec *rec, const struct dt_key *key)

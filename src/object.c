@@ -13,7 +13,7 @@
 #include <lustre_disk.h>
 #include <lustre_fid.h>
 
-#include "osd_internal.h"
+#include "common.h"
 
 static int osd_index_try(const struct lu_env *env, struct dt_object *dt,
 			 const struct dt_index_features *feat)

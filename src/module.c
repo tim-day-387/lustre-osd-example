@@ -14,7 +14,7 @@
 #include <uapi/linux/lustre/lustre_param.h>
 #include <md_object.h>
 
-#include "osd_internal.h"
+#include "common.h"
 
 int verbose_debug;
 
